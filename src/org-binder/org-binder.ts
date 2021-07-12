@@ -30,7 +30,7 @@ export class OrganizationBinder {
     }
 
     public getBindings(): BindingRoot {
-        return  {
+        return {
             organization: this.getOrganizationBinding(),
         };
     }
@@ -73,11 +73,21 @@ export class OrganizationBinder {
         for (const boundPolicy of org.accounts) {
             switch (boundPolicy.action) {
                 case 'Create':
-                    const t1 = this.taskProvider.createAccountCreateTasks(boundPolicy.template, boundPolicy.templateHash);
+                    let t1;
+                    if (org?.organizationRoot?.template?.mirrorInGovCloud) {
+                        t1 = this.taskProvider.createGovCloudAccountCreateTasks(boundPolicy.template, boundPolicy.templateHash);
+                    } else {
+                        t1 = this.taskProvider.createAccountCreateTasks(boundPolicy.template, boundPolicy.templateHash);
+                    }
                     tasks.push(...t1);
                     break;
                 case 'Update':
-                    const t2 = this.taskProvider.createAccountUpdateTasks(boundPolicy.template, boundPolicy.state.physicalId, boundPolicy.templateHash);
+                    let t2;
+                    if (org?.organizationRoot?.template?.mirrorInGovCloud) {
+                        t2 = this.taskProvider.createGovCloudAccountUpdateTasks(boundPolicy.template, boundPolicy.state.physicalId, boundPolicy.state.govCloudId, boundPolicy.templateHash);
+                    } else {
+                        t2 = this.taskProvider.createAccountUpdateTasks(boundPolicy.template, boundPolicy.state.physicalId, boundPolicy.templateHash);
+                    }
                     tasks.push(...t2);
                     break;
                 case 'Delete':
@@ -240,9 +250,9 @@ class AccountBinding extends Binding<AccountResource> {
 
     public static enumerateAccountBindings(template: TemplateRoot, state: PersistedState): AccountBinding[] {
         return Binding.enumerateBindings<AccountResource>(
-                            OrgResourceTypes.Account,
-                            template.organizationSection.accounts,
-                            state);
+            OrgResourceTypes.Account,
+            template.organizationSection.accounts,
+            state);
 
     }
 }
@@ -251,9 +261,9 @@ class OrganizationalUnitBinding extends Binding<OrganizationalUnitResource> {
 
     public static enumerateOrganizationalUnitBindings(template: TemplateRoot, state: PersistedState): OrganizationalUnitBinding[] {
         return Binding.enumerateBindings<OrganizationalUnitResource>(
-                            OrgResourceTypes.OrganizationalUnit,
-                            template.organizationSection.organizationalUnits,
-                            state);
+            OrgResourceTypes.OrganizationalUnit,
+            template.organizationSection.organizationalUnits,
+            state);
 
     }
 }
@@ -262,9 +272,9 @@ class ServiceControlPolicyBinding extends Binding<ServiceControlPolicyResource> 
 
     public static enumerateServiceControlBindings(template: TemplateRoot, state: PersistedState): ServiceControlPolicyBinding[] {
         return Binding.enumerateBindings<ServiceControlPolicyResource>(
-                            OrgResourceTypes.ServiceControlPolicy,
-                            template.organizationSection.serviceControlPolicies,
-                            state);
+            OrgResourceTypes.ServiceControlPolicy,
+            template.organizationSection.serviceControlPolicies,
+            state);
 
     }
 }

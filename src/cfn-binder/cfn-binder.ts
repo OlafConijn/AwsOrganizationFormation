@@ -22,6 +22,7 @@ export class CloudFormationBinder {
                 private readonly taskRoleName: string = undefined,
                 private readonly terminationProtection = false,
                 private readonly stackPolicy: {} = undefined,
+                private readonly govCloud: boolean = false,
                 private readonly customRoleName?: string,
                 private readonly resolver?: CfnExpressionResolver,
                 private readonly taskProvider: CfnTaskProvider = new CfnTaskProvider(template, state, logVerbose),
@@ -50,7 +51,15 @@ export class CloudFormationBinder {
             if (!accountBinding) {
                 throw new OrgFormationError(`Expected to find an account binding for account ${target.accountLogicalId} in state. Is your organization up to date?`);
             }
-            const accountId  = accountBinding.physicalId;
+            let accountId: string;
+            /**
+             * Currently flagging for this. Might be a better solution.
+             */
+            if (this.govCloud && accountBinding.govCloudId) {
+                accountId = accountBinding.govCloudId;
+            } else {
+                accountId = accountBinding.physicalId;
+            }
             const region = target.region;
             const stackName = this.stackName;
             const key = {accountId, region, stackName};

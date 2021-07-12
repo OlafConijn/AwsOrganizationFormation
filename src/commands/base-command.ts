@@ -81,7 +81,13 @@ export abstract class BaseCliCommand<T extends ICommandArgs> {
 
     public async generateDefaultTemplate(defaultBuildAccessRoleName?: string): Promise<DefaultTemplate> {
         const organizations = new Organizations({ region: 'us-east-1' });
-        const awsReader = new AwsOrganizationReader(organizations);
+        const govCloudCredentials = await AwsUtil.GetGovCloudCredentials();
+        let awsReader: AwsOrganizationReader;
+        if (govCloudCredentials) {
+            awsReader = new AwsOrganizationReader(organizations, null, govCloudCredentials);
+        } else {
+            awsReader = new AwsOrganizationReader(organizations);
+        }
         const awsOrganization = new AwsOrganization(awsReader);
         const writer = new DefaultTemplateWriter(awsOrganization);
         writer.DefaultBuildProcessAccessRoleName = defaultBuildAccessRoleName;
@@ -96,7 +102,9 @@ export abstract class BaseCliCommand<T extends ICommandArgs> {
         if (command.state) {
             return command.state;
         }
+
         const storageProvider = await this.getStateStorageProvider(command);
+
         BaseCliCommand.StateBucketName = storageProvider.bucketName;
         const accountId = await AwsUtil.GetMasterAccountId();
 
@@ -139,6 +147,12 @@ export abstract class BaseCliCommand<T extends ICommandArgs> {
     protected abstract performCommand(command: T): Promise<void>;
 
     protected addOptions(command: Command): void {
+        /**
+         * Note the addition of two commands here. The gov-cloud-profile is used to know which profile to grab from your config file.
+         * The gov-cloud boolean is used to denote when you're running org-formation with the primary profile as govcloud. This is used
+         * so that org-formation knows to use resources with a govcloud region, but this might be able to be simplified by just
+         * updating the AWS.config.region.
+         */
         command.option('--state-bucket-name [state-bucket-name]', 'bucket name that contains state file', 'organization-formation-${AWS::AccountId}');
         command.option('--state-object [state-object]', 'key for object used to store state', DEFAULT_STATE_OBJECT);
         command.option('--profile [profile]', 'aws profile to use');
@@ -146,6 +160,10 @@ export abstract class BaseCliCommand<T extends ICommandArgs> {
         command.option('--verbose', 'will enable debug logging');
         command.option('--no-color', 'will disable colorization of console logs');
         command.option('--master-account-id [master-account-id]', 'run org-formation on a build account that functions as a delegated master account');
+        command.option('--gov-cloud', 'is run on gov cloud');
+        command.option('--gov-cloud-credentials', 'is running on both partitions');
+        command.option('--gov-cloud-profile [profile]', 'aws govcloud profile to use');
+
     }
 
     protected async getOrganizationBinder(template: TemplateRoot, state: PersistedState): Promise<OrganizationBinder> {
@@ -155,12 +173,23 @@ export abstract class BaseCliCommand<T extends ICommandArgs> {
         }
         const masterAccountId = await AwsUtil.GetMasterAccountId();
         const organizations = await AwsUtil.GetOrganizationsService(masterAccountId, roleInMasterAccount);
+        const govCloudCredentials = await AwsUtil.GetGovCloudCredentials();
         const crossAccountConfig = { masterAccountId, masterAccountRoleName: roleInMasterAccount };
-
-        const awsReader = new AwsOrganizationReader(organizations, crossAccountConfig);
+        let awsReader: AwsOrganizationReader;
+        if (govCloudCredentials) {
+            awsReader = new AwsOrganizationReader(organizations, crossAccountConfig, govCloudCredentials);
+        } else {
+            awsReader = new AwsOrganizationReader(organizations, crossAccountConfig);
+        }
         const awsOrganization = new AwsOrganization(awsReader);
         await awsOrganization.initialize();
-        const awsWriter = new AwsOrganizationWriter(organizations, awsOrganization, crossAccountConfig);
+        let awsWriter: AwsOrganizationWriter;
+
+        if (govCloudCredentials) {
+            awsWriter = new AwsOrganizationWriter(organizations, awsOrganization, crossAccountConfig, govCloudCredentials);
+        } else {
+            awsWriter = new AwsOrganizationWriter(organizations, awsOrganization, crossAccountConfig);
+        }
         const taskProvider = new TaskProvider(template, state, awsWriter);
         const binder = new OrganizationBinder(template, state, taskProvider);
         return binder;
@@ -182,7 +211,12 @@ export abstract class BaseCliCommand<T extends ICommandArgs> {
     protected async getStateStorageProvider(command: ICommandArgs, accountId?: string, credentials?: CredentialsOptions): Promise<S3StorageProvider> {
         const objectKey = command.stateObject;
         const stateBucketName = await BaseCliCommand.GetStateBucketName(command.stateBucketName, accountId);
-        const storageProvider = await S3StorageProvider.Create(stateBucketName, objectKey, credentials);
+        let storageProvider;
+        if (command.govCloud) {
+            storageProvider = S3StorageProvider.Create(stateBucketName, objectKey, credentials, 'us-gov-west-1');
+        } else {
+            storageProvider = S3StorageProvider.Create(stateBucketName, objectKey, credentials);
+        }
         return storageProvider;
     }
 
@@ -248,13 +282,24 @@ export abstract class BaseCliCommand<T extends ICommandArgs> {
             ConsoleUtil.colorizeLogs = false;
         }
 
-        await AwsUtil.InitializeWithProfile(command.profile);
-
+        await AwsUtil.InitializeWithProfile(command.profile, command.govCloud);
 
         if (command.masterAccountId !== undefined) {
             AwsUtil.SetMasterAccountId(command.masterAccountId);
         }
 
+        if (command.govCloudProfile !== undefined) {
+            AwsUtil.SetGovCloudProfile(command.govCloudProfile);
+            await AwsUtil.SetGovCloudCredentials(command.govCloudProfile);
+        }
+
+        if (command.govCloud) {
+            AwsUtil.SetIsGovCloud(true);
+        }
+
+        if (command.govCloudCredentials) {
+            await AwsUtil.SetGovCloudCredentials();
+        }
         await AwsUtil.InitializeWithCurrentPartition();
 
         command.initialized = true;
@@ -297,6 +342,10 @@ export abstract class BaseCliCommand<T extends ICommandArgs> {
                 command.profile = rc.profile;
             }
 
+            if (process.argv.indexOf('--gov-cloud-profile') === -1 && rc.govCloudProfile !== undefined) {
+                command.govCloudProfile = rc.govCloudProfile;
+            }
+
             if (process.argv.indexOf('--organization-file') === -1 && rc.organizationFile !== undefined) {
                 (command as IPerformTasksCommandArgs).organizationFile = rc.organizationFile;
             }
@@ -328,11 +377,14 @@ export interface ICommandArgs {
     organizationStateObject?: string;
     organizationStateBucketName?: string;
     profile?: string;
+    govCloudProfile?: string;
     state?: PersistedState;
     initialized?: boolean;
     printStack?: boolean;
     verbose?: boolean;
     color?: boolean;
+    govCloud?: boolean;
+    govCloudCredentials?: boolean;
     resolver?: CfnExpressionResolver;
 }
 
@@ -345,6 +397,7 @@ export interface IRCObject {
     organizationStateObject?: string;
     organizationStateBucketName?: string;
     profile?: string;
+    govCloudProfile?: string;
     configs: string[];
     config: string;
 }

@@ -55,12 +55,12 @@ export class CfnTemplate {
             uniqueNameForImport: (resourceLogicalId + 'Dot' + path).replace(/\./g, 'Dot'),
         };
         const resource = target.template!.resources[resourceLogicalId];
-        if (resource.Condition !== undefined) {
-            result.conditionForExport = resource.Condition;
-        }
         if (accountLogicalId) {
             const accountLogicalWithDashes = accountLogicalId.replace(/\-/g, 'Dash');
             result.uniqueNameForImport = accountLogicalWithDashes + 'DotResourcesDot' + result.uniqueNameForImport;
+        }
+        if (resource.Condition !== undefined) {
+            result.conditionForExport = resource.Condition;
         }
         if (path && (path.endsWith('NameServers') || path.endsWith('DnsEntries'))) { // todo: add list of other attributes that are not string;
             result.valueType = 'CommaDelimitedList';

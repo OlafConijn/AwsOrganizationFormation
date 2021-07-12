@@ -68,6 +68,7 @@ export class UpdateStacksCommand extends BaseCliCommand<IUpdateStacksCommandArgs
         command.option('--update-protection', 'value that indicates whether stack must have a stack policy that prevents updates');
         command.option('--max-concurrent-stacks <max-concurrent-stacks>', 'maximum number of stacks to be executed concurrently', 1);
         command.option('--failed-stacks-tolerance <failed-stacks-tolerance>', 'the number of failed stacks after which execution stops', 0);
+
         super.addOptions(command);
     }
 
@@ -80,6 +81,8 @@ export class UpdateStacksCommand extends BaseCliCommand<IUpdateStacksCommandArgs
         Validator.validatePositiveInteger(command.failedStacksTolerance, 'failedStacksTolerance');
         Validator.validateBoolean(command.terminationProtection, 'terminationProtection');
         Validator.validateBoolean(command.updateProtection, 'updateProtection');
+        Validator.validateBoolean(command.govCloud, 'govCloud');
+
 
         this.storeCommand(command);
 
@@ -87,6 +90,7 @@ export class UpdateStacksCommand extends BaseCliCommand<IUpdateStacksCommandArgs
         const updateProtection = command.updateProtection;
         const cloudFormationRoleName = command.cloudFormationRoleName;
         const taskRoleName = command.taskRoleName;
+        const govCloud = command.govCloud === true;
         const taskViaRoleArn = command.taskViaRoleArn;
         const stackName = command.stackName;
         const templateFile = command.templateFile;
@@ -133,7 +137,7 @@ export class UpdateStacksCommand extends BaseCliCommand<IUpdateStacksCommandArgs
         const state = await this.getState(command);
         GlobalState.Init(state, template);
 
-        const cfnBinder = new CloudFormationBinder(stackName, template, state, parameters, command.forceDeploy === true, command.verbose === true, taskRoleName, terminationProtection, stackPolicy, cloudFormationRoleName, command.resolver, undefined, taskViaRoleArn);
+        const cfnBinder = new CloudFormationBinder(stackName, template, state, parameters, command.forceDeploy === true, command.verbose === true, taskRoleName, terminationProtection, stackPolicy, govCloud, cloudFormationRoleName, command.resolver, undefined, taskViaRoleArn);
 
         const cfnTasks = await cfnBinder.enumTasks();
         if (cfnTasks.length === 0) {
