@@ -1,11 +1,14 @@
 import { Command } from 'commander';
 import { ConsoleUtil } from '../util/console-util';
+import { AwsUtil } from '../util/aws-util';
+
 import { BaseCliCommand, ICommandArgs } from './base-command';
 import { TaskRunner } from '~org-binder/org-task-runner';
 import { TemplateRoot } from '~parser/parser';
 import { PersistedState } from '~state/persisted-state';
 import { IBuildTask } from '~org-binder/org-tasks-provider';
 import { GlobalState } from '~util/global-state';
+import { S3StorageProvider } from '~state/storage-provider';
 
 
 const commandName = 'update <templateFile>';
@@ -24,7 +27,6 @@ export class UpdateOrganizationCommand extends BaseCliCommand<IUpdateOrganizatio
         this.HasRan = false;
     }
 
-
     constructor(command?: Command) {
         super(command, commandName, commandDescription, 'templateFile');
     }
@@ -36,6 +38,17 @@ export class UpdateOrganizationCommand extends BaseCliCommand<IUpdateOrganizatio
     public async performCommand(command: IUpdateOrganizationCommandArgs): Promise<void> {
         const template = await TemplateRoot.create(command.templateFile);
         const state = await this.getState(command);
+        let govCloudProvider: S3StorageProvider;
+
+        /**
+         * These additional providers and such are all over the place, since I added them as I went along.
+         * Would be great if we could centralize the govcloud provider stuff.
+         */
+         const creds = await AwsUtil.GetGovCloudCredentials();
+         if (creds) {
+            const masterAccountId = await AwsUtil.GetGovCloudMasterAccountId();
+            govCloudProvider = await this.createOrGetStateBucket(command, 'us-gov-west-1', masterAccountId, creds);
+        }
 
         GlobalState.Init(state, template);
 
@@ -53,10 +66,10 @@ export class UpdateOrganizationCommand extends BaseCliCommand<IUpdateOrganizatio
 
         const binder = await this.getOrganizationBinder(template, state);
         const tasks = binder.enumBuildTasks();
-        await UpdateOrganizationCommand.ExecuteTasks(tasks, state, templateHash, template);
+        await UpdateOrganizationCommand.ExecuteTasks(tasks, state, templateHash, template, govCloudProvider);
     }
 
-    public static async ExecuteTasks(tasks: IBuildTask[], state: PersistedState, templateHash: string, template: TemplateRoot): Promise<void> {
+    public static async ExecuteTasks(tasks: IBuildTask[], state: PersistedState, templateHash: string, template: TemplateRoot, govCloudProvider?: S3StorageProvider): Promise<void> {
         try {
             if (tasks.length === 0) {
                 ConsoleUtil.LogInfo('organization up to date, no work to be done.');
@@ -69,6 +82,11 @@ export class UpdateOrganizationCommand extends BaseCliCommand<IUpdateOrganizatio
         }
         finally {
             await state.save();
+
+            if (govCloudProvider !== undefined) {
+                await state.save(govCloudProvider, true);
+            }
+
         }
     }
 }

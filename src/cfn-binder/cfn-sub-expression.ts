@@ -24,7 +24,7 @@ export class SubExpression {
         } else {
             throw new OrgFormationError('unable to parse !Sub expression');
         }
-        const matches = this.expression.match(/\${([\w\:\.]*)}/g);
+        const matches = this.expression.match(/\${([\w\:\.\-]*)}/g);
         if (!matches) {
             this.variables = [];
         } else {

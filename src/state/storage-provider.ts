@@ -14,16 +14,21 @@ export interface IStorageProvider {
 }
 
 export class S3StorageProvider implements IStorageProvider {
+    /**
+     * Primary changes here have just been adding the ability for a region to get passed in.
+     */
 
-    public static Create(bucketName: string, objectKey: string, credentials?: CredentialsOptions): S3StorageProvider {
-        return new S3StorageProvider(bucketName, objectKey, credentials);
+    public static Create(bucketName: string, objectKey: string, credentials?: CredentialsOptions, region?: string): S3StorageProvider {
+        return new S3StorageProvider(bucketName, objectKey, credentials, region);
     }
 
     public readonly bucketName: string;
     public readonly objectKey: string;
+    private readonly credentials: CredentialsOptions;
+    private readonly region: string;
 
 
-    private constructor(stateBucketName: string, stateObject: string, private readonly credentials: CredentialsOptions = AWS.config.credentials) {
+    private constructor(stateBucketName: string, stateObject: string, credentials?: CredentialsOptions, region?: string) {
         if (!stateBucketName || stateBucketName === '') {
             throw new OrgFormationError('stateBucketName cannot be undefined or empty');
         }
@@ -32,6 +37,8 @@ export class S3StorageProvider implements IStorageProvider {
         }
         this.bucketName = stateBucketName;
         this.objectKey = stateObject;
+        this.credentials = credentials ? credentials : AWS.config.credentials;
+        this.region = region ? region : 'us-east-1';
     }
 
     public async create(region: string, throwOnAccessDenied = false): Promise<void> {
@@ -112,12 +119,14 @@ export class S3StorageProvider implements IStorageProvider {
 
     public async put(contents: string): Promise<void> {
         try {
-            const s3client = new S3({ credentials: this.credentials });
+            /**
+             * I was getting an ACL error here in govcloud.
+             */
+            const s3client = new S3({ credentials: this.credentials, region: this.region });
             const putObjectRequest: PutObjectRequest = {
                 Bucket: this.bucketName,
                 Key: this.objectKey,
                 Body: contents,
-                ACL: 'bucket-owner-full-control',
             };
 
             // create a copy of `putObjectRequest` to ensure no circular references
