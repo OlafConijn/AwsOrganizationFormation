@@ -1,0 +1,7 @@
+{
+  "teams": [
+    { "name": "a", "email": "account+a@olafconijn.awsapps.com" },
+    { "name": "b", "email": "account+b@olafconijn.awsapps.com" },
+    { "name": "c", "email": "account+c@olafconijn.awsapps.com" }
+  ]
+}

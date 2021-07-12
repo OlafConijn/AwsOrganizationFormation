@@ -1,0 +1,11 @@
+
+OrganizationUpdate:
+  Type: update-organization
+  Template: ./organization.njk
+  Skip: true
+  TemplatingContext: !Include ./templating-context.json
+
+Include:
+  Type: include
+  Path: ./included-task.njk
+  TemplatingContext: !Include ./templating-context.json

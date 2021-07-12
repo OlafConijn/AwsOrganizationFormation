@@ -28,32 +28,32 @@ describe('when calling org-formation perform tasks', () => {
         await context.prepareStateBucket(basePathForScenario + '../state.json');
         const { command, stateBucketName, s3client } = context;
 
-        await ValidateTasksCommand.Perform({...command, tasksFile: basePathForScenario + '1-deploy-cdk-workload-2targets.yml' })
+        await ValidateTasksCommand.Perform({ ...command, tasksFile: basePathForScenario + '1-deploy-cdk-workload-2targets.yml' })
 
         spawnProcessMock.mockReset();
-        await PerformTasksCommand.Perform({...command, tasksFile: basePathForScenario + '1-deploy-cdk-workload-2targets.yml' });
+        await PerformTasksCommand.Perform({ ...command, tasksFile: basePathForScenario + '1-deploy-cdk-workload-2targets.yml' });
         spawnProcessAfterDeploy2Targets = spawnProcessMock.mock;
-        stateAfterDeploy2Targets = await s3client.getObject({Bucket: stateBucketName, Key: command.stateObject}).promise();
+        stateAfterDeploy2Targets = await s3client.getObject({ Bucket: stateBucketName, Key: command.stateObject }).promise();
 
         spawnProcessMock.mockReset();
-        await PerformTasksCommand.Perform({...command, tasksFile: basePathForScenario + '2-update-cdk-workload-with-parameters.yml' })
+        await PerformTasksCommand.Perform({ ...command, tasksFile: basePathForScenario + '2-update-cdk-workload-with-parameters.yml' })
         spawnProcessAfterUpdateWithParameters = spawnProcessMock.mock;
-        stateAfterUpdateWithParameters = await s3client.getObject({Bucket: stateBucketName, Key: command.stateObject}).promise();
+        stateAfterUpdateWithParameters = await s3client.getObject({ Bucket: stateBucketName, Key: command.stateObject }).promise();
 
         spawnProcessMock.mockReset();
-        await PerformTasksCommand.Perform({...command, tasksFile: basePathForScenario + '3-deploy-cdk-workload-1target.yml' })
+        await PerformTasksCommand.Perform({ ...command, tasksFile: basePathForScenario + '3-deploy-cdk-workload-1target.yml' })
         spawnProcessAfterDeploy1Target = spawnProcessMock.mock;
-        stateAfterDeploy1Target = await s3client.getObject({Bucket: stateBucketName, Key: command.stateObject}).promise();
+        stateAfterDeploy1Target = await s3client.getObject({ Bucket: stateBucketName, Key: command.stateObject }).promise();
 
         spawnProcessMock.mockReset();
-        await PerformTasksCommand.Perform({...command, tasksFile: basePathForScenario + '4-remove-cdk-workload-task.yml', performCleanup: false })
+        await PerformTasksCommand.Perform({ ...command, tasksFile: basePathForScenario + '4-remove-cdk-workload-task.yml', performCleanup: false })
         spawnProcessAfterRemoveTask = spawnProcessMock.mock;
-        stateAfterRemoveTask = await s3client.getObject({Bucket: stateBucketName, Key: command.stateObject}).promise();
+        stateAfterRemoveTask = await s3client.getObject({ Bucket: stateBucketName, Key: command.stateObject }).promise();
 
         spawnProcessMock.mockReset();
-        await RemoveCommand.Perform({...command, type: 'cdk', name: 'CdkWorkload' });
+        await RemoveCommand.Perform({ ...command, type: 'cdk', name: 'CdkWorkload' });
         spawnProcessAfterCleanup = spawnProcessMock.mock;
-        stateAfterCleanup = await s3client.getObject({Bucket: stateBucketName, Key: command.stateObject}).promise();
+        stateAfterCleanup = await s3client.getObject({ Bucket: stateBucketName, Key: command.stateObject }).promise();
     });
 
     test('after deploy 2 targets npm ci was called twice', () => {
@@ -69,8 +69,8 @@ describe('when calling org-formation perform tasks', () => {
     test('after deploy 2 targets CDK_DEFAULT_REGION and CDK_DEFAULT_ACCOUNT are set', () => {
         const contexts: ExecOptions[] = [spawnProcessAfterDeploy2Targets.calls[0][1], spawnProcessAfterDeploy2Targets.calls[1][1]];
 
-        const noRegion = contexts.find(x=>x.env['CDK_DEFAULT_REGION'] === undefined);
-        const noAccount = contexts.find(x=>x.env['CDK_DEFAULT_ACCOUNT'] === undefined);
+        const noRegion = contexts.find(x => x.env['CDK_DEFAULT_REGION'] === undefined);
+        const noAccount = contexts.find(x => x.env['CDK_DEFAULT_ACCOUNT'] === undefined);
 
         expect(noRegion).toBeUndefined();
         expect(noAccount).toBeUndefined();
@@ -92,6 +92,22 @@ describe('when calling org-formation perform tasks', () => {
         const command1 = spawnProcessAfterUpdateWithParameters.calls[1][0];
         expect(command0).toEqual(expect.stringContaining('param2=Account A'));
         expect(command0 !== command1).toBeTruthy();
+    });
+
+    test('GetAtt to tag resolves from within parameters', () => {
+        const command0: string = spawnProcessAfterUpdateWithParameters.calls[0][0];
+        const command1: string = spawnProcessAfterUpdateWithParameters.calls[1][0];
+        const foundTagValue1 = [command0, command1].some(x => x.includes('-c \'param3=TagValue1\''))
+        const foundTagValue2 = [command0, command1].some(x => x.includes('-c \'param3=TagValue2\''))
+        expect(foundTagValue1).toBe(true);
+        expect(foundTagValue2).toBe(true);
+    });
+
+    test('when updating, no parameter is left unresolved', () => {
+        const command0 = spawnProcessAfterUpdateWithParameters.calls[0][0];
+        const command1 = spawnProcessAfterUpdateWithParameters.calls[1][0];
+        expect(command0).toEqual(expect.not.stringContaining('[object object]'));
+        expect(command1).toEqual(expect.not.stringContaining('[object object]'));
     });
 
 

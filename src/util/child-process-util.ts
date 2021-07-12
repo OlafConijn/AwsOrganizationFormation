@@ -10,7 +10,7 @@ export class ChildProcessUtility {
     public static async SpawnProcessForAccount(cwd: string, command: string, accountId: string, roleInTargetAccount?: string, env: Record<string, string> = {}, logVerbose: boolean | undefined = undefined): Promise<void> {
         ConsoleUtil.LogInfo(`Executing command: ${command} in account ${accountId}`);
 
-        if (roleInTargetAccount === undefined){
+        if (roleInTargetAccount === undefined) {
             roleInTargetAccount = GlobalState.GetCrossAccountRoleName(roleInTargetAccount);
         }
 
@@ -30,7 +30,7 @@ export class ChildProcessUtility {
                     AWS_ACCESS_KEY_ID: credentials.accessKeyId,
                     AWS_SECRET_ACCESS_KEY: credentials.secretAccessKey,
                 };
-
+                delete env.AWS_PROFILE;
                 if (credentials.sessionToken) {
                     options.env.AWS_SESSION_TOKEN = credentials.sessionToken;
                 }

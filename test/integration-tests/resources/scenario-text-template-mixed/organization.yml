@@ -7,13 +7,3 @@ Organization:
     Properties:
       AccountName: Organizational Master Account
       AccountId: '102625093955'
-      Tags:
-        Tag: TagValue1
-
-  AccountA:
-    Type: OC::ORG::Account
-    Properties:
-      RootEmail: account+a@olafconijn.awsapps.com
-      AccountName: Account A
-      Tags:
-        Tag: TagValue2

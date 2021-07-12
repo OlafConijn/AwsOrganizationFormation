@@ -62,7 +62,7 @@ export class UpdateStacksBuildTaskProvider implements IBuildTaskProvider<IUpdate
             perform: async (): Promise<void> => {
                 const updateStacksCommand = UpdateStacksBuildTaskProvider.createUpdateStacksCommandArgs(config, command);
                 updateStacksCommand.resolver = resolver;
-                await PrintStacksCommand.Perform({...updateStacksCommand, stackName: config.StackName });
+                await PrintStacksCommand.Perform({ ...updateStacksCommand, stackName: config.StackName });
             },
         };
     }
@@ -85,14 +85,15 @@ export class UpdateStacksBuildTaskProvider implements IBuildTaskProvider<IUpdate
                     ConsoleUtil.LogWarning(`    org-formation delete-stacks --stack-name ${physicalId} ${additionalArgs}`);
                     ConsoleUtil.LogWarning('');
                     ConsoleUtil.LogWarning('Did you not remove a task? but are you logically using different files? check out the --logical-name option.');
-                    for(const target of command.state.enumTargets(physicalId)) {
+                    for (const target of command.state.enumTargets(physicalId)) {
                         target.lastCommittedHash = 'deleted';
                         command.state.setTarget(target);
                     }
                 } else {
                     ConsoleUtil.LogInfo(`Executing: delete-stacks ${physicalId}.`);
-                    await DeleteStacksCommand.Perform({...command, stackName: physicalId, maxConcurrentStacks: 1, failedStacksTolerance: 0});
-                }},
+                    await DeleteStacksCommand.Perform({ ...command, stackName: physicalId, maxConcurrentStacks: 1, failedStacksTolerance: 0 });
+                }
+            },
         };
     }
 
@@ -171,6 +172,10 @@ export class UpdateStacksBuildTaskProvider implements IBuildTaskProvider<IUpdate
             args.stackPolicy = config.StackPolicy;
         }
 
+        if (config.Tags !== undefined) {
+            args.tags = config.Tags;
+        }
+
         if (config.MaxConcurrentStacks) {
             args.maxConcurrentStacks = config.MaxConcurrentStacks;
         }
@@ -216,6 +221,7 @@ export interface IUpdateStackTaskConfiguration extends IBuildTaskConfiguration {
     TerminationProtection?: boolean;
     UpdateProtection?: boolean;
     StackPolicy?: {};
+    Tags?: {};
     MaxConcurrentStacks: number;
     FailedStackTolerance: number;
     CloudFormationRoleName?: string;

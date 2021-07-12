@@ -49,7 +49,7 @@ export class PrintStacksCommand extends BaseCliCommand<IPrintStacksCommandArgs> 
         const state = await this.getState(command);
         GlobalState.Init(state, template);
         const parameters = this.parseCfnParameters(command.parameters);
-        const cfnBinder = new CloudFormationBinder(command.stackName, template, state, parameters, undefined,undefined, undefined, undefined, undefined, undefined, command.resolver);
+        const cfnBinder = new CloudFormationBinder(command.stackName, template, state, parameters, undefined, undefined, undefined, undefined, undefined, undefined, undefined, command.resolver);
 
         const bindings = await cfnBinder.enumBindings();
         for (const binding of bindings) {
@@ -61,22 +61,22 @@ export class PrintStacksCommand extends BaseCliCommand<IPrintStacksCommandArgs> 
             const templateBody = binding.template.createTemplateBody({ outputCrossAccountExports: command.outputCrossAccountExports, output: command.output });
             const resolvedParameters = createParametersFileInput(binding);
 
-            if (command.outputPath !== undefined)  {
+            if (command.outputPath !== undefined) {
                 const outputPath = path.resolve(command.outputPath, command.stackName);
 
                 const fileName = toKebabCase(`${binding.region}-${binding.accountLogicalId}`) + '.' + command.output;
                 const parametersFileName = toKebabCase(`${binding.region}-${binding.accountLogicalId}`) + '.parameters.json';
                 const resolvedPath = path.resolve(outputPath, fileName);
-                const resolvedParametersPath  = path.resolve(outputPath, parametersFileName);
+                const resolvedParametersPath = path.resolve(outputPath, parametersFileName);
 
-                try{
+                try {
                     mkdirSync(outputPath, { recursive: true });
-                    writeFileSync(resolvedPath, templateBody, { });
+                    writeFileSync(resolvedPath, templateBody, {});
                     if (resolvedParameters.length > 0 && (command.printParameters === true)) {
                         const parametersString = JSON.stringify(resolvedParameters, null, 2);
-                        writeFileSync(resolvedParametersPath, parametersString, { });
+                        writeFileSync(resolvedParametersPath, parametersString, {});
                     }
-                }catch(err) {
+                } catch (err) {
                     ConsoleUtil.LogError('error writing template to file', err);
                     throw new OrgFormationError('error writing file');
                 }
@@ -90,20 +90,20 @@ export class PrintStacksCommand extends BaseCliCommand<IPrintStacksCommandArgs> 
 }
 
 
-const createParametersFileInput = (task: ICfnBinding): {ParameterKey: string; ParameterValue: string | unknown}[] => {
+const createParametersFileInput = (task: ICfnBinding): { ParameterKey: string; ParameterValue: string | unknown }[] => {
     if (task === undefined || task.resolvedParameters === undefined) {
         return [];
     }
-    const result: {ParameterKey: string; ParameterValue: unknown}[] = [];
-    for(const [ParameterKey, ParameterValue] of Object.entries(task.resolvedParameters)) {
-        result.push({ParameterKey, ParameterValue});
+    const result: { ParameterKey: string; ParameterValue: unknown }[] = [];
+    for (const [ParameterKey, ParameterValue] of Object.entries(task.resolvedParameters)) {
+        result.push({ ParameterKey, ParameterValue });
     }
     return result;
 };
 
 const toKebabCase = (input: string): string => {
     if (input !== undefined) {
-        return input.match(/[A-Z]{2,}(?=[A-Z][a-z]+[0-9]*|\b)|[A-Z]?[a-z]+[0-9]*|[A-Z]|[0-9]+/g).map(x=>x.toLowerCase()).join('-');
+        return input.match(/[A-Z]{2,}(?=[A-Z][a-z]+[0-9]*|\b)|[A-Z]?[a-z]+[0-9]*|[A-Z]|[0-9]+/g).map(x => x.toLowerCase()).join('-');
     }
     return undefined;
 };

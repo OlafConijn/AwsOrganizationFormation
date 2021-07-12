@@ -3,6 +3,8 @@ import { CdkBuildTaskPlugin } from './impl/cdk-build-task-plugin';
 import { SlsBuildTaskPlugin } from './impl/sls-build-task-plugin';
 import { CopyToS3TaskPlugin } from './impl/s3-copy-build-task-plugin';
 import { RpBuildTaskPlugin } from './impl/rp-build-task-plugin';
+import { TfBuildTaskPlugin } from './impl/tf-apply-task-plugin';
+import { StediBuildTaskPlugin } from './impl/stedi-deploy-task-plugin';
 import { IBuildTaskConfiguration } from '~build-tasks/build-configuration';
 import { ICommandArgs } from '~commands/base-command';
 import { IPluginBinding, IPluginTask } from '~plugin/plugin-binder';
@@ -24,7 +26,7 @@ export interface IBuildTaskPlugin<TBuildTaskConfig extends IBuildTaskConfigurati
     performRemove(binding: IPluginBinding<TTask>, resolver: CfnExpressionResolver): Promise<void>;
     performCreateOrUpdate(binding: IPluginBinding<TTask>, resolver: CfnExpressionResolver): Promise<void>;
 
-    appendResolvers(resolver: CfnExpressionResolver, binding: IPluginBinding<TTask>):  Promise<void>;
+    appendResolvers(resolver: CfnExpressionResolver, binding: IPluginBinding<TTask>): Promise<void>;
 
     getPhysicalIdForCleanup(command: TBuildTaskConfig): string | undefined;
 
@@ -45,7 +47,7 @@ export interface IBuildTaskPluginCommandArgs extends ICommandArgs {
 
 export class PluginProvider {
     static GetPlugin(type: string): IBuildTaskPlugin<any, any, any> {
-        const found = this.GetPlugins().find(x=>x.type === type);
+        const found = this.GetPlugins().find(x => x.type === type);
         if (found === undefined) {
             throw new OrgFormationError(`unable to find plugin of type ${type}`);
         }
@@ -58,6 +60,8 @@ export class PluginProvider {
             new SlsBuildTaskPlugin(),
             new CopyToS3TaskPlugin(),
             new RpBuildTaskPlugin(),
+            new TfBuildTaskPlugin(),
+            new StediBuildTaskPlugin(),
         ];
     }
 }

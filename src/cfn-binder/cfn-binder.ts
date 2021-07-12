@@ -14,19 +14,20 @@ export class CloudFormationBinder {
     private readonly masterAccount: string;
 
     constructor(private readonly stackName: string,
-                private readonly template: TemplateRoot,
-                private readonly state: PersistedState,
-                private readonly parameters: Record<string, string | ICfnCopyValue> = {},
-                private readonly forceDeploy: boolean = false,
-                private readonly logVerbose: boolean = false,
-                private readonly taskRoleName: string = undefined,
-                private readonly terminationProtection = false,
-                private readonly stackPolicy: {} = undefined,
-                private readonly customRoleName?: string,
-                private readonly resolver?: CfnExpressionResolver,
-                private readonly taskProvider: CfnTaskProvider = new CfnTaskProvider(template, state, logVerbose),
-                private readonly taskViaRoleArn: string = undefined,
-                ) {
+        private readonly template: TemplateRoot,
+        private readonly state: PersistedState,
+        private readonly parameters: Record<string, string | ICfnCopyValue> = {},
+        private readonly forceDeploy: boolean = false,
+        private readonly logVerbose: boolean = false,
+        private readonly taskRoleName: string = undefined,
+        private readonly terminationProtection = false,
+        private readonly stackPolicy: {} = undefined,
+        private readonly tags: {} = undefined,
+        private readonly customRoleName?: string,
+        private readonly resolver?: CfnExpressionResolver,
+        private readonly taskProvider: CfnTaskProvider = new CfnTaskProvider(template, state, logVerbose),
+        private readonly taskViaRoleArn: string = undefined,
+    ) {
 
         this.masterAccount = template.organizationSection.masterAccount.accountId;
 
@@ -50,10 +51,10 @@ export class CloudFormationBinder {
             if (!accountBinding) {
                 throw new OrgFormationError(`Expected to find an account binding for account ${target.accountLogicalId} in state. Is your organization up to date?`);
             }
-            const accountId  = accountBinding.physicalId;
+            const accountId = accountBinding.physicalId;
             const region = target.region;
             const stackName = this.stackName;
-            const key = {accountId, region, stackName};
+            const key = { accountId, region, stackName };
 
             const expressionResolver = CfnExpressionResolver.CreateDefaultResolver(target.accountLogicalId, accountId, target.region, this.taskRoleName, this.taskViaRoleArn, this.template.organizationSection, this.state, false);
             if (this.resolver) {
@@ -69,11 +70,11 @@ export class CloudFormationBinder {
             const template = await cfnTemplate.createTemplateBodyAndResolve(expressionResolver);
 
             let foundResolveExpression = (template.match(/{{resolve:/) !== null);
-            for(const value of Object.values(resolvedParameters)) {
+            for (const value of Object.values(resolvedParameters)) {
                 if (foundResolveExpression) {
                     break;
                 }
-                if (!value) {continue;}
+                if (!value) { continue; }
                 foundResolveExpression = value.startsWith('{{resolve:');
             }
 
@@ -89,6 +90,7 @@ export class CloudFormationBinder {
                 templateHash: invocationHash,
                 terminationProtection: this.terminationProtection,
                 stackPolicy: this.stackPolicy,
+                tags: this.tags,
                 customRoleName: this.taskRoleName,
                 customViaRoleArn: this.taskViaRoleArn,
                 cloudFormationRoleName: this.customRoleName,
@@ -177,7 +179,7 @@ export class CloudFormationBinder {
                 } as ICfnBinding);
 
                 ConsoleUtil.LogDebug(`Setting build action on stack ${stackName} for ${accountId}/${region} to Delete - target found in state but not in binding.`, this.logVerbose);
-             }
+            }
         }
         return result;
     }
@@ -190,8 +192,8 @@ export class CloudFormationBinder {
                 const task = await this.taskProvider.createUpdateTemplateTask(binding, this.resolver);
                 task.isDependency = (other: ICfnTask): boolean => {
                     return binding.accountDependencies.includes(other.accountId) ||
-                           binding.regionDependencies.includes(other.region) ||
-                           binding.dependencies.findIndex(x => x.outputAccountId === other.accountId && x.outputRegion === other.region && x.outputStackName === other.stackName) > -1;
+                        binding.regionDependencies.includes(other.region) ||
+                        binding.dependencies.findIndex(x => x.outputAccountId === other.accountId && x.outputRegion === other.region && x.outputStackName === other.stackName) > -1;
                 };
                 result.push(task);
             } else if (binding.action === 'Delete') {
@@ -208,6 +210,7 @@ export class CloudFormationBinder {
             stackName: this.stackName,
             terminationProtection: this.terminationProtection,
             stackPolicy: this.stackPolicy,
+            tags: this.tags,
             cloudFormationRoleName: this.customRoleName,
             taskRoleName: this.taskRoleName,
             taskViaRoleName: this.taskViaRoleArn,
@@ -241,6 +244,7 @@ export interface ICfnBinding {
     customViaRoleArn?: string;
     cloudFormationRoleName?: string;
     stackPolicy?: {};
+    tags?: {};
 }
 
 export interface ICfnCrossAccountDependency {

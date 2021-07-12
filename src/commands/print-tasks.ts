@@ -32,6 +32,7 @@ export class PrintTasksCommand extends BaseCliCommand<IPrintTasksCommandArgs> {
         command.option('--output-path <output-path>', 'path, within the root directory, used to store printed templates', './.printed-stacks/');
         command.option('--output-cross-account-exports <output-path>', 'when set, output well generate cross account exports as part of cfn parameter', false);
         command.option('--no-print-parameters', 'will not print parameter files when printing stacks');
+        command.option('--debug-templating [debug-templating]', 'when set to true the output of text templating processes will be stored on disk', false);
 
         super.addOptions(command);
     }
@@ -49,11 +50,11 @@ export class PrintTasksCommand extends BaseCliCommand<IPrintTasksCommandArgs> {
         }
 
         command.parsedParameters = this.parseCfnParameters(command.parameters);
-        const config = new BuildConfiguration(tasksFile, command.parsedParameters);
+        const config = new BuildConfiguration(tasksFile, command.parsedParameters, command.TemplatingContext);
         await config.fixateOrganizationFile(command);
 
         const printTasks = config.enumPrintTasks(command);
-        await BuildRunner.RunPrintTasks(printTasks, command.verbose === true , command.maxConcurrentTasks, command.failedTasksTolerance);
+        await BuildRunner.RunPrintTasks(printTasks, command.verbose === true, command.maxConcurrentTasks, command.failedTasksTolerance);
     }
 }
 

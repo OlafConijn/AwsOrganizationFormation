@@ -1,4 +1,5 @@
 import { readFileSync } from 'fs';
+// import { inspect } from 'util'; // or directly
 import { CloudFormation, IAM, S3, STS, Support, CredentialProviderChain, Organizations } from 'aws-sdk';
 import { CredentialsOptions } from 'aws-sdk/lib/credentials';
 import AWS from 'aws-sdk';
@@ -9,6 +10,7 @@ import { DescribeOrganizationResponse } from 'aws-sdk/clients/organizations';
 import { PutObjectRequest } from 'aws-sdk/clients/s3';
 import { ServiceConfigurationOptions } from 'aws-sdk/lib/service';
 import * as ini from 'ini';
+import { v4 as uuid } from 'uuid';
 import { OrgFormationError } from '../org-formation-error';
 import { ConsoleUtil } from './console-util';
 import { GlobalState } from './global-state';
@@ -369,10 +371,12 @@ export class CfnUtil {
             retryAccountIsBeingInitialized = false;
             try {
                 try {
+                    updateStackInput.ClientRequestToken = uuid();
                     await cfn.updateStack(updateStackInput).promise();
                     describeStack = await cfn.waitFor('stackUpdateComplete', { StackName: updateStackInput.StackName, $waiter: { delay: 1, maxAttempts: 60 * 30 } }).promise();
                 } catch (innerErr) {
                     if (innerErr && innerErr.code === 'ValidationError' && innerErr.message && innerErr.message.indexOf('does not exist') !== -1) {
+                        updateStackInput.ClientRequestToken = uuid();
                         await cfn.createStack(updateStackInput).promise();
                         describeStack = await cfn.waitFor('stackCreateComplete', { StackName: updateStackInput.StackName, $waiter: { delay: 1, maxAttempts: 60 * 30 } }).promise();
                     } else {
@@ -380,18 +384,20 @@ export class CfnUtil {
                     }
                 }
             } catch (err) {
+                // ConsoleUtil.LogError(`ADDITIONAL ${updateStackInput.StackName}: ${inspect(err)}`);
                 if (err && (err.code === 'OptInRequired' || err.code === 'InvalidClientTokenId')) {
                     if (retryAccountIsBeingInitializedCount >= 20) { // 20 * 30 sec = 10 minutes
                         throw new OrgFormationError('Account seems stuck initializing.');
                     }
                     retryAccountIsBeingInitializedCount += 1;
-                    await sleep(30);
+                    await sleep(26 + (4 * Math.random()));
                     retryAccountIsBeingInitialized = true;
-                } else if (err && err.code === 'ValidationError' && err.message) {
+                } else if (err && (err.code === 'ValidationError' && err.message) || (err.code === 'ResourceNotReady')) {
                     const message = err.message as string;
                     if (-1 !== message.indexOf('ROLLBACK_COMPLETE') || -1 !== message.indexOf('ROLLBACK_FAILED') || -1 !== message.indexOf('DELETE_FAILED')) {
                         await cfn.deleteStack({ StackName: updateStackInput.StackName, RoleARN: updateStackInput.RoleARN }).promise();
                         await cfn.waitFor('stackDeleteComplete', { StackName: updateStackInput.StackName, $waiter: { delay: 1, maxAttempts: 60 * 30 } }).promise();
+                        updateStackInput.ClientRequestToken = uuid();
                         await cfn.createStack(updateStackInput).promise();
                         describeStack = await cfn.waitFor('stackCreateComplete', { StackName: updateStackInput.StackName, $waiter: { delay: 1, maxAttempts: 60 * 30 } }).promise();
                     } else if (-1 !== message.indexOf('No updates are to be performed.')) {
@@ -403,14 +409,15 @@ export class CfnUtil {
                         (-1 !== message.indexOf('is in UPDATE_IN_PROGRESS state and can not be updated.')) ||
                         (-1 !== message.indexOf('is in CREATE_ROLLBACK_IN_PROGRESS state and can not be updated.')) ||
                         (-1 !== message.indexOf('is in CREATE_COMPLETE_CLEANUP_IN_PROGRESS state and can not be updated.')) ||
-                        (-1 !== message.indexOf('is in CREATE_IN_PROGRESS state and can not be updated.'))) {
+                        (-1 !== message.indexOf('is in CREATE_IN_PROGRESS state and can not be updated.')) ||
+                        (err.code === 'ResourceNotReady' && err.originalError?.code === 'Throttling')) {
                         if (retryStackIsBeingUpdatedCount >= 20) { // 20 * 30 sec = 10 minutes
                             throw new OrgFormationError(`Stack ${updateStackInput.StackName} seems stuck in UPDATE_IN_PROGRESS (or similar) state.`);
                         }
 
                         ConsoleUtil.LogInfo(`Stack ${updateStackInput.StackName} is already being updated. waiting.... `);
                         retryStackIsBeingUpdatedCount += 1;
-                        await sleep(30);
+                        await sleep(26 + (4 * Math.random()));
                         retryStackIsBeingUpdated = true;
 
                     } else {

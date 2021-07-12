@@ -26,8 +26,8 @@ describe('when creating perform-tasks command', () => {
     });
 
     test('perform-tasks command has description', () => {
-       expect(subCommanderCommand).toBeDefined();
-       expect(subCommanderCommand.description()).toBeDefined();
+        expect(subCommanderCommand).toBeDefined();
+        expect(subCommanderCommand.description()).toBeDefined();
     });
 
     test('perform-tasks command has file as first argument', () => {
@@ -116,7 +116,7 @@ describe('when executing perform-tasks command', () => {
             type: 'update-organization',
             childTasks: [],
             skip: undefined,
-            perform: async () => {},
+            perform: async () => { },
             isDependency: () => false,
         }]
 
@@ -132,7 +132,7 @@ describe('when executing perform-tasks command', () => {
         command = new PerformTasksCommand(commanderCommand);
         subCommanderCommand = commanderCommand.commands[0];
 
-        commandArgs = {maxConcurrentStacks: 1, failedStacksTolerance: 0, maxConcurrentTasks: 1, failedTasksTolerance: 0, tasksFile: 'tasks.yml', logicalName: 'default'} as IPerformTasksCommandArgs;
+        commandArgs = { maxConcurrentStacks: 1, failedStacksTolerance: 0, maxConcurrentTasks: 1, failedTasksTolerance: 0, tasksFile: 'tasks.yml', logicalName: 'default' } as IPerformTasksCommandArgs;
     });
 
 
@@ -143,7 +143,7 @@ describe('when executing perform-tasks command', () => {
     test('BuildConfiguration called to enum config', async () => {
         await command.performCommand(commandArgs);
         expect(buildConfigurationEnumConfigMock).toHaveBeenCalledTimes(1);
-        expect(buildConfigurationEnumConfigMock).toHaveBeenCalledWith('tasks.yml');
+        expect(buildConfigurationEnumConfigMock).toHaveBeenCalledWith('tasks.yml', undefined);
     });
 
     test('BuildConfiguration called to fixate configuration file', async () => {
@@ -175,8 +175,8 @@ describe('when executing perform-tasks command', () => {
 
         beforeEach(() => {
             const updateStacks: IBuildTask[] = [
-                { name: 'updateStacks1', type: 'update-stacks', childTasks: [], physicalIdForCleanup: 'stack-name-1', skip: undefined, perform: async () => {}, isDependency: () => false },
-                { name: 'updateStacks2', type: 'update-stacks', childTasks: [], physicalIdForCleanup: 'stack-name-2', skip: undefined, perform: async () => {}, isDependency: () => false }
+                { name: 'updateStacks1', type: 'update-stacks', childTasks: [], physicalIdForCleanup: 'stack-name-1', skip: undefined, perform: async () => { }, isDependency: () => false },
+                { name: 'updateStacks2', type: 'update-stacks', childTasks: [], physicalIdForCleanup: 'stack-name-2', skip: undefined, perform: async () => { }, isDependency: () => false }
             ];
 
             stateSaveMock = jest.spyOn(PersistedState.prototype, 'save').mockImplementation();
@@ -261,7 +261,7 @@ describe('when executing perform-tasks command', () => {
             });
 
             test('delete task with log warnings', async () => {
-                commandArgs.state = {enumTargets: jest.fn().mockReturnValue([])} as any;
+                commandArgs.state = { enumTargets: jest.fn().mockReturnValue([]) } as any;
                 await command.performCommand(commandArgs);
 
                 expect(logWarningMock).toHaveBeenCalledTimes(0);
@@ -271,7 +271,7 @@ describe('when executing perform-tasks command', () => {
             });
 
             test('delete stacks command is not called', async () => {
-                commandArgs.state = {enumTargets: jest.fn().mockReturnValue([])} as any;
+                commandArgs.state = { enumTargets: jest.fn().mockReturnValue([]) } as any;
                 await command.performCommand(commandArgs);
                 await buildTaskProviderCreateDeleteTaskMock.mock.results[0].value.perform();
 
@@ -281,7 +281,7 @@ describe('when executing perform-tasks command', () => {
             describe('and perform cleanup flag', () => {
 
                 test('delete stacks command is called', async () => {
-                    await command.performCommand({...commandArgs, performCleanup: true });
+                    await command.performCommand({ ...commandArgs, performCleanup: true });
                     await buildTaskProviderCreateDeleteTaskMock.mock.results[0].value.perform();
 
                     expect(deleteStacksCommandPerformMock).toHaveBeenCalledTimes(1);
@@ -290,7 +290,7 @@ describe('when executing perform-tasks command', () => {
                     expect(call[0].stackName).toBe('stack-name-3');
                 })
                 test('delete task with not log warnings', async () => {
-                    await command.performCommand({...commandArgs, performCleanup: true });
+                    await command.performCommand({ ...commandArgs, performCleanup: true });
                     await buildTaskProviderCreateDeleteTaskMock.mock.results[0].value.perform();
 
 
@@ -301,7 +301,7 @@ describe('when executing perform-tasks command', () => {
                 });
 
                 test('info message is logged', async () => {
-                    await command.performCommand({...commandArgs, performCleanup: true });
+                    await command.performCommand({ ...commandArgs, performCleanup: true });
                     await buildTaskProviderCreateDeleteTaskMock.mock.results[0].value.perform();
 
                     expect(logInfoMock).toHaveBeenCalledTimes(1);

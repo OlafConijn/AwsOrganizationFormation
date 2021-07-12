@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { ConsoleUtil } from '../util/console-util';
 import { BaseCliCommand } from './base-command';
 import { IUpdateOrganizationCommandArgs } from './update-organization';
+import { IUpdateStacksCommandArgs } from './update-stacks';
 import { TemplateRoot } from '~parser/parser';
 import { GlobalState } from '~util/global-state';
 
@@ -24,7 +25,7 @@ export class ValidateOrganizationCommand extends BaseCliCommand<IUpdateOrganizat
 
     protected async performCommand(command: IUpdateOrganizationCommandArgs): Promise<void> {
 
-        const template = await TemplateRoot.create(command.templateFile);
+        const template = await TemplateRoot.create(command.templateFile, { TemplatingContext: command.templatingContext, OrganizationFileContents: (command as IUpdateStacksCommandArgs).organizationFileContents }, (command as IUpdateStacksCommandArgs).organizationFileHash);
         const state = await this.getState(command);
         const templateHash = template.hash;
 
@@ -41,7 +42,7 @@ export class ValidateOrganizationCommand extends BaseCliCommand<IUpdateOrganizat
         const binder = await this.getOrganizationBinder(template, state);
 
         const tasks = binder.enumBuildTasks();
-        const createTasks = tasks.filter(x=>x.action === 'Create');
+        const createTasks = tasks.filter(x => x.action === 'Create');
         if (createTasks.length > 0) {
             ConsoleUtil.LogWarning('Accounts were added to the organization model.');
             ConsoleUtil.LogWarning('Tasks might depend on updating the organization.');

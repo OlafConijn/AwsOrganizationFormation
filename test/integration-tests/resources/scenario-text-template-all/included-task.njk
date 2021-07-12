@@ -1,0 +1,11 @@
+
+{% for team in teams %}
+buckets{{ team.name | capitalize  }}:
+  Type: update-stacks
+  StackName: buckets-{{ team.name }}
+  Template: ./buckets.yml
+  DefaultOrganizationBindingRegion: eu-west-1
+  MaxConcurrentStacks: 10
+  DefaultOrganizationBinding:
+      IncludeMasterAccount: true
+{% endfor %}

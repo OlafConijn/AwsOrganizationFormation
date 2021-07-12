@@ -6,13 +6,14 @@ import { IPerformTasksCommandArgs } from '~commands/index';
 import { BuildRunner } from '~build-tasks/build-runner';
 import { IBuildTaskProvider, BuildTaskProvider } from '~build-tasks/build-task-provider';
 import { IPrintTasksCommandArgs } from '~commands/print-tasks';
+import { CfnExpressionResolver } from '~core/cfn-expression-resolver';
 
 
 export class IncludeTaskProvider implements IBuildTaskProvider<IIncludeTaskConfiguration> {
 
     public type = 'include';
 
-    createTask(config: IIncludeTaskConfiguration, command: IPerformTasksCommandArgs): IBuildTask {
+    createTask(config: IIncludeTaskConfiguration, command: IPerformTasksCommandArgs, resolver: CfnExpressionResolver): IBuildTask {
 
         if (config.Path === undefined) {
             throw new OrgFormationError(`Required attribute Path missing for task ${config.LogicalName}`);
@@ -20,8 +21,8 @@ export class IncludeTaskProvider implements IBuildTaskProvider<IIncludeTaskConfi
 
         const dir = path.dirname(config.FilePath);
         const taskFilePath = path.join(dir, config.Path);
-        const parameters: Record<string, any> = {...command.parsedParameters, ...(config.Parameters ?? {})};
-        const buildConfig = new BuildConfiguration(taskFilePath, parameters);
+        const parameters: Record<string, any> = { ...command.parsedParameters, ...(config.Parameters ?? {}) };
+        const buildConfig = new BuildConfiguration(taskFilePath, parameters, resolver.resolveTemplatingContext(config.TemplatingContext));
 
         const commandForInclude: IPerformTasksCommandArgs = {
             ...command,
@@ -45,7 +46,7 @@ export class IncludeTaskProvider implements IBuildTaskProvider<IIncludeTaskConfi
         };
     }
 
-    createTaskForValidation(config: IIncludeTaskConfiguration, command: IPerformTasksCommandArgs): IBuildTask | undefined {
+    createTaskForValidation(config: IIncludeTaskConfiguration, command: IPerformTasksCommandArgs, resolver: CfnExpressionResolver): IBuildTask | undefined {
 
         if (config.Path === undefined) {
             throw new OrgFormationError(`Required attribute Path missing for task ${config.LogicalName}`);
@@ -53,8 +54,8 @@ export class IncludeTaskProvider implements IBuildTaskProvider<IIncludeTaskConfi
 
         const dir = path.dirname(config.FilePath);
         const taskFilePath = path.join(dir, config.Path);
-        const parameters: Record<string, any> = {...command.parsedParameters, ...(config.Parameters ?? {})};
-        const buildConfig = new BuildConfiguration(taskFilePath, parameters);
+        const parameters: Record<string, any> = { ...command.parsedParameters, ...(config.Parameters ?? {}) };
+        const buildConfig = new BuildConfiguration(taskFilePath, parameters, resolver.resolveTemplatingContext(config.TemplatingContext));
 
         const commandForInclude: IPerformTasksCommandArgs = {
             ...command,
@@ -74,15 +75,15 @@ export class IncludeTaskProvider implements IBuildTaskProvider<IIncludeTaskConfi
         };
     }
 
-    createTaskForPrint(config: IIncludeTaskConfiguration, command: IPrintTasksCommandArgs): IBuildTask {
+    createTaskForPrint(config: IIncludeTaskConfiguration, command: IPrintTasksCommandArgs, resolver: CfnExpressionResolver): IBuildTask {
         if (config.Path === undefined) {
             throw new OrgFormationError(`Required attribute Path missing for task ${config.LogicalName}`);
         }
 
         const dir = path.dirname(config.FilePath);
         const taskFilePath = path.join(dir, config.Path);
-        const parameters: Record<string, any> = {...command.parsedParameters, ...(config.Parameters ?? {})};
-        const buildConfig = new BuildConfiguration(taskFilePath, parameters);
+        const parameters: Record<string, any> = { ...command.parsedParameters, ...(config.Parameters ?? {}) };
+        const buildConfig = new BuildConfiguration(taskFilePath, parameters, resolver.resolveTemplatingContext(config.TemplatingContext));
 
         const commandForInclude: IPrintTasksCommandArgs = {
             ...command,
@@ -116,4 +117,5 @@ export interface IIncludeTaskConfiguration extends IBuildTaskConfiguration {
     FailedTaskTolerance?: number;
     ForceDeploy?: boolean;
     LogVerbose?: boolean;
+    TemplatingContext?: {};
 }

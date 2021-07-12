@@ -2,7 +2,7 @@ import { writeFileSync } from 'fs';
 import { Command } from 'commander';
 import { ConsoleUtil } from '../util/console-util';
 import { BaseCliCommand, ICommandArgs } from './base-command';
-import { DEFAULT_ROLE_FOR_CROSS_ACCOUNT_ACCESS } from '~util/aws-util';
+import { DEFAULT_ROLE_FOR_CROSS_ACCOUNT_ACCESS, DEFAULT_ROLE_FOR_ORG_ACCESS } from '~util/aws-util';
 
 const commandName = 'init <file>';
 const commandDescription = 'generate template & initialize organization';
@@ -27,6 +27,7 @@ export class InitOrganizationCommand extends BaseCliCommand<IInitCommandArgs> {
     public async performCommand(command: IInitCommandArgs): Promise<void> {
         if (command.crossAccountRoleName) {
             DEFAULT_ROLE_FOR_CROSS_ACCOUNT_ACCESS.RoleName = command.crossAccountRoleName;
+            DEFAULT_ROLE_FOR_ORG_ACCESS.RoleName = command.crossAccountRoleName;
         }
         this.storeCommand(command);
 

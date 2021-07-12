@@ -1,0 +1,6 @@
+
+OrganizationUpdate:
+  Type: update-organization
+  Skip: true
+  Template: ./organization.njk
+  TemplatingContext: !Include ./templating-context.json

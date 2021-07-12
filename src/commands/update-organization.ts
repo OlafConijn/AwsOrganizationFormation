@@ -34,7 +34,9 @@ export class UpdateOrganizationCommand extends BaseCliCommand<IUpdateOrganizatio
     }
 
     public async performCommand(command: IUpdateOrganizationCommandArgs): Promise<void> {
-        const template = await TemplateRoot.create(command.templateFile);
+
+
+        const template = await TemplateRoot.create(command.templateFile, { TemplatingContext: command.templatingContext });
         const state = await this.getState(command);
 
         GlobalState.Init(state, template);
@@ -77,4 +79,5 @@ export interface IUpdateOrganizationCommandArgs extends ICommandArgs {
     templateFile: string;
     forceDeploy?: boolean;
     taskRoleName?: string;
+    templatingContext?: {};
 }

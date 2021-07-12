@@ -18,7 +18,7 @@ export class Validator {
 
         Validator.ThrowForUnknownAttribute(clone, `runtime configuration file (${rc.configs.join(', ')})`,
             'organizationFile', 'stateBucketName', 'stateObject', 'profile', 'printStacksOutputPath',
-            'masterAccountId', 'organizationStateObject', 'organizationStateBucketName');
+            'masterAccountId', 'organizationStateObject', 'organizationStateBucketName', 'templatingContext');
 
     }
 
@@ -56,7 +56,7 @@ export class Validator {
         }
 
         Validator.ThrowForUnknownAttribute(config, `task ${taskName}`,
-            'Type', 'DependsOn', 'Skip', 'Template', 'StackName', 'StackDescription', 'Parameters', 'TemplatingContext', 'StackPolicy',
+            'Type', 'DependsOn', 'Skip', 'Template', 'StackName', 'StackDescription', 'Parameters', 'TemplatingContext', 'StackPolicy', 'Tags',
             'DeletionProtection', 'OrganizationFile', 'OrganizationBinding', 'OrganizationBindingRegion', 'DefaultOrganizationBinding', 'DefaultOrganizationBindingRegion',
             'OrganizationBindings', 'TerminationProtection', 'UpdateProtection', 'CloudFormationRoleName', 'TaskRoleName',
             'LogicalName', 'FilePath', 'MaxConcurrentStacks', 'FailedStackTolerance', 'LogVerbose', 'ForceDeploy', 'TaskViaRoleArn');

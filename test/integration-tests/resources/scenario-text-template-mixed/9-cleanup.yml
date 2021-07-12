@@ -1,0 +1,5 @@
+
+OrganizationUpdate:
+  Type: update-organization
+  Skip: true
+  Template: ./organization.yml

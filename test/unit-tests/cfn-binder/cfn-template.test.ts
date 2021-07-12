@@ -164,6 +164,9 @@ describe('when creating cloudformation with output section', () => {
             OutputGetOrgFunctions: {
                 Value:  {'Fn::GetAtt': ['AWSAccount', 'AccountName']},
             },
+            OutputTag : {
+                Value: {'Fn::GetAtt': ['AWSAccount', 'Tags.key.other']},
+            },
         };
         template = new CfnTemplate(target, templateRoot, persistedState);
         templateForTarget = template.createTemplateBody();
@@ -211,6 +214,14 @@ describe('when creating cloudformation with output section', () => {
         expect(result.Outputs).toBeDefined();
         expect(result.Outputs.OutputGetOrgFunctions).toBeDefined();
         expect(result.Outputs.OutputGetOrgFunctions.Value).toBe('My Account 1');
+    });
+
+    test('complex tag key will get resolved', () => {
+        const result = JSON.parse(templateForTarget);
+        expect(result).toBeDefined();
+        expect(result.Outputs).toBeDefined();
+        expect(result.Outputs.OutputTag).toBeDefined();
+        expect(result.Outputs.OutputTag.Value).toBe('val');
     });
 });
 

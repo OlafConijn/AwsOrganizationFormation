@@ -41,6 +41,7 @@ export class PerformTasksCommand extends BaseCliCommand<IPerformTasksCommandArgs
         command.option('--parameters [parameters]', 'parameters used when creating build tasks from tasks file');
         command.option('--organization-state-object [organization-state-object]', 'key for object used to load read-only organization state');
         command.option('--organization-state-bucket-name [organization-state-bucket-name]', 'name of the bucket that contains the read-only organization state');
+        command.option('--debug-templating [debug-templating]', 'when set to true the output of text templating processes will be stored on disk', false);
 
         super.addOptions(command);
     }
@@ -54,7 +55,7 @@ export class PerformTasksCommand extends BaseCliCommand<IPerformTasksCommandArgs
         Validator.validatePositiveInteger(command.failedTasksTolerance, 'failedTasksTolerance');
         this.storeCommand(command);
         command.parsedParameters = this.parseCfnParameters(command.parameters);
-        const config = new BuildConfiguration(tasksFile, command.parsedParameters);
+        const config = new BuildConfiguration(tasksFile, command.parsedParameters, command.TemplatingContext);
 
         const [state, template] = await Promise.all([this.getState(command), config.fixateOrganizationFile(command)]);
 
@@ -72,8 +73,8 @@ export class PerformTasksCommand extends BaseCliCommand<IPerformTasksCommandArgs
         if (cleanupTasks.length > 0) {
             await BuildRunner.RunTasks(cleanupTasks, command.verbose === true, command.maxConcurrentTasks, command.failedTasksTolerance);
         }
-        const tasksToTrack = BuildTaskProvider.recursivelyFilter(tasks, x=> x.physicalIdForCleanup !== undefined);
-        const trackedTasks: ITrackedTask[] = tasksToTrack.map(x=> { return {physicalIdForCleanup: x.physicalIdForCleanup, logicalName: x.name, type: x.type  }; });
+        const tasksToTrack = BuildTaskProvider.recursivelyFilter(tasks, x => x.physicalIdForCleanup !== undefined);
+        const trackedTasks: ITrackedTask[] = tasksToTrack.map(x => { return { physicalIdForCleanup: x.physicalIdForCleanup, logicalName: x.name, type: x.type }; });
         state.setTrackedTasks(command.logicalName, trackedTasks);
 
         if (UpdateOrganizationCommand.HasRan === true) {
@@ -85,9 +86,9 @@ export class PerformTasksCommand extends BaseCliCommand<IPerformTasksCommandArgs
     }
 
     public static async PublishChangedOrganizationFileIfChanged(command: IPerformTasksCommandArgs, state: PersistedState): Promise<void> {
-        if (FileUtil.IsRemoteFile(command.organizationFile)) {return;}
+        if (FileUtil.IsRemoteFile(command.organizationFile)) { return; }
         if (command.organizationFileHash !== state.getTemplateHashLastPublished()) {
-            const contents = readFileSync(command.organizationFile).toString();
+            const contents = command.organizationFileContents ?? readFileSync(command.organizationFile).toString();
             const object = yamlParse(contents);
             const objectKey = command.organizationObject || DEFAULT_ORGANIZATION_OBJECT;
             const stateBucketName = await BaseCliCommand.GetStateBucketName(command.stateBucketName);
@@ -112,6 +113,7 @@ export interface IPerformTasksCommandArgs extends ICommandArgs {
     organizationFile?: string;
     organizationFileContents?: string;
     organizationFileHash?: string;
+    TemplatingContext?: {};
     parameters?: string | {};
     parsedParameters?: Record<string, string>;
     logicalNamePrefix?: string;

@@ -6,7 +6,7 @@ import { PutObjectRequest } from 'aws-sdk/clients/s3';
 import { Command } from 'commander';
 import { WritableStream } from 'memory-streams';
 import { CredentialsOptions } from 'aws-sdk/lib/credentials';
-import { AwsUtil, CfnUtil, DEFAULT_ROLE_FOR_CROSS_ACCOUNT_ACCESS } from '../util/aws-util';
+import { AwsUtil, CfnUtil, DEFAULT_ROLE_FOR_CROSS_ACCOUNT_ACCESS, DEFAULT_ROLE_FOR_ORG_ACCESS } from '../util/aws-util';
 import { ConsoleUtil } from '../util/console-util';
 import { OrgFormationError } from '../org-formation-error';
 import { BaseCliCommand, ICommandArgs } from './base-command';
@@ -53,6 +53,7 @@ export class InitPipelineCommand extends BaseCliCommand<IInitPipelineCommandArgs
 
         if (command.crossAccountRoleName) {
             DEFAULT_ROLE_FOR_CROSS_ACCOUNT_ACCESS.RoleName = command.crossAccountRoleName;
+            DEFAULT_ROLE_FOR_ORG_ACCESS.RoleName = command.crossAccountRoleName;
         }
 
         const region = command.region ?? AwsUtil.GetDefaultRegion(command.profile);

@@ -1,5 +1,5 @@
 import { ValidateTemplateInput } from 'aws-sdk/clients/cloudformation';
-import uuid = require('uuid');
+import { v4 as uuid } from 'uuid';
 import { OrgFormationError } from '../org-formation-error';
 import { ICfnBinding } from './cfn-binder';
 import { ICfnTask } from './cfn-task-provider';

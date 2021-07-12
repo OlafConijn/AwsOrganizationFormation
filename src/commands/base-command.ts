@@ -1,4 +1,5 @@
 import path from 'path';
+import { readFileSync } from 'fs';
 import { Organizations } from 'aws-sdk';
 import { Command } from 'commander';
 import RC from 'rc';
@@ -20,6 +21,7 @@ import { DefaultTemplate, DefaultTemplateWriter } from '~writer/default-template
 import { CfnParameters } from '~core/cfn-parameters';
 import { Validator } from '~parser/validator';
 import { CfnExpressionResolver } from '~core/cfn-expression-resolver';
+import { NunjucksDebugSettings } from '~yaml-cfn/index';
 
 const DEFAULT_STATE_OBJECT = 'state.json';
 
@@ -250,9 +252,12 @@ export abstract class BaseCliCommand<T extends ICommandArgs> {
 
         await AwsUtil.InitializeWithProfile(command.profile);
 
-
         if (command.masterAccountId !== undefined) {
             AwsUtil.SetMasterAccountId(command.masterAccountId);
+        }
+
+        if (command.debugTemplating) {
+            NunjucksDebugSettings.debug = true;
         }
 
         await AwsUtil.InitializeWithCurrentPartition();
@@ -270,6 +275,15 @@ export abstract class BaseCliCommand<T extends ICommandArgs> {
                 if (absolutePath !== rc.organizationFile) {
                     ConsoleUtil.LogDebug(`organization file from runtime configuration resolved to absolute file path: ${absolutePath} (${rc.config} + ${rc.organizationFile})`);
                     rc.organizationFile = absolutePath;
+                }
+            }
+
+            if (rc.templatingContext && rc.config) {
+                const dir = path.dirname(rc.config);
+                const absolutePath = path.join(dir, rc.templatingContext);
+                if (absolutePath !== rc.templatingContext) {
+                    ConsoleUtil.LogDebug(`templating context file from runtime configuration resolved to absolute file path: ${absolutePath} (${rc.config} + ${rc.templatingContext})`);
+                    rc.templatingContext = absolutePath;
                 }
             }
 
@@ -301,6 +315,10 @@ export abstract class BaseCliCommand<T extends ICommandArgs> {
                 (command as IPerformTasksCommandArgs).organizationFile = rc.organizationFile;
             }
 
+            if (process.argv.indexOf('--templating-context') === -1 && rc.templatingContext !== undefined) {
+                (command as IPerformTasksCommandArgs).TemplatingContext = JSON.parse(readFileSync(rc.templatingContext).toString());
+            }
+
             if (process.argv.indexOf('--output-path') === -1 && rc.printStacksOutputPath !== undefined) {
                 (command as IPrintTasksCommandArgs).outputPath = rc.printStacksOutputPath;
             }
@@ -316,6 +334,10 @@ export abstract class BaseCliCommand<T extends ICommandArgs> {
             if (process.argv.indexOf('--organization-state-bucket-name') === -1 && rc.organizationStateBucketName !== undefined) {
                 (command as IPerformTasksCommandArgs).organizationStateBucketName = rc.organizationStateBucketName;
             }
+
+            if (process.argv.indexOf('--debug-templating') === -1 && rc.debugTemplating !== undefined) {
+                (command as IPerformTasksCommandArgs).debugTemplating = rc.debugTemplating;
+            }
         }
 
     }
@@ -329,6 +351,7 @@ export interface ICommandArgs {
     organizationStateBucketName?: string;
     profile?: string;
     state?: PersistedState;
+    debugTemplating?: boolean;
     initialized?: boolean;
     printStack?: boolean;
     verbose?: boolean;
@@ -339,11 +362,13 @@ export interface ICommandArgs {
 export interface IRCObject {
     printStacksOutputPath?: string;
     organizationFile?: string;
+    templatingContext?: string;
     masterAccountId?: string;
     stateBucketName?: string;
     stateObject?: string;
     organizationStateObject?: string;
     organizationStateBucketName?: string;
+    debugTemplating?: boolean;
     profile?: string;
     configs: string[];
     config: string;

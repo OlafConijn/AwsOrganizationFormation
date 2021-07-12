@@ -11,7 +11,9 @@ import { CfnExpressionResolver } from '~core/cfn-expression-resolver';
 import { CfnMappingsSection } from '~core/cfn-functions/cfn-find-in-map';
 import { yamlParseWithIncludes } from '~yaml-cfn/yaml-parse-includes';
 import { ConsoleUtil } from '~util/console-util';
-import { TemplateRoot } from '~parser/parser';
+import { IOrganizationBinding, TemplateRoot } from '~parser/parser';
+import { nunjucksParseWithIncludes } from '~yaml-cfn/nunjucks-parse-includes';
+import { nunjucksRender } from '~yaml-cfn/index';
 import { AwsUtil } from '~util/aws-util';
 
 export class BuildConfiguration {
@@ -20,11 +22,12 @@ export class BuildConfiguration {
     public mappings: CfnMappingsSection;
     private file: string;
     private resolver: CfnExpressionResolver;
+    private organizationBindings: Record<string, IOrganizationBinding>;
 
-    constructor(input: string, private readonly parameterValues: Record<string, string> = {}) {
+    constructor(input: string, private readonly parameterValues: Record<string, string> = {}, private templatingContext: {} = undefined) {
         this.file = input;
         this.resolver = new CfnExpressionResolver();
-        this.tasks = this.enumBuildConfiguration(this.file);
+        this.tasks = this.enumBuildConfiguration(this.file, templatingContext);
     }
 
     public enumValidationTasks(command: IPerformTasksCommandArgs): IBuildTask[] {
@@ -94,9 +97,10 @@ export class BuildConfiguration {
 
             const dir = path.dirname(this.file);
             command.organizationFile = path.resolve(dir, updateOrgTask.Template);
+            command.TemplatingContext = updateOrgTask.TemplatingContext;
         }
 
-        const organizationFileContents = await this.readOrganizationFileContents(command.organizationFile);
+        const organizationFileContents = await this.readOrganizationFileContents(command.organizationFile, command.TemplatingContext);
         const pathDirname = path.dirname(command.organizationFile);
         const pathFile = path.basename(command.organizationFile);
         const templateRoot = TemplateRoot.createFromContents(organizationFileContents, pathDirname, pathFile, {}, command.organizationFileHash);
@@ -106,19 +110,27 @@ export class BuildConfiguration {
             command.organizationFileHash = md5(organizationFileContents);
         }
 
+        this.resolver.setTemplateRoot(templateRoot);
+
         return templateRoot;
     }
 
-    private async readOrganizationFileContents(organizationFileLocation: string): Promise<string> {
+    private async readOrganizationFileContents(organizationFileLocation: string, textTemplatingContext?: any): Promise<string> {
         try {
             if (organizationFileLocation.startsWith('s3://')) {
+                if (textTemplatingContext) { throw new Error('Text templating context is not supported on s3 hosted organization files'); }
                 const s3client = new S3(); // we don't know which role to assume yet....
                 const bucketAndKey = organizationFileLocation.substring(5);
                 const bucketAndKeySplit = bucketAndKey.split('/');
                 const response = await s3client.getObject({ Bucket: bucketAndKeySplit[0], Key: bucketAndKeySplit[1] }).promise();
                 return response.Body.toString();
             } else {
-                return readFileSync(organizationFileLocation).toString();
+                const contents = readFileSync(organizationFileLocation).toString();
+                if (textTemplatingContext !== undefined) {
+                    const filename = path.basename(organizationFileLocation);
+                    return nunjucksRender(contents, filename, textTemplatingContext);
+                }
+                return contents;
             }
         } catch (err) {
             ConsoleUtil.LogError(`unable to load organization file from ${organizationFileLocation}.`, err);
@@ -126,27 +138,36 @@ export class BuildConfiguration {
         }
     }
 
-    public enumBuildConfiguration(filePath: string): IBuildTaskConfiguration[] {
-        const buildFile = this.loadBuildFile(filePath);
+    public enumBuildConfiguration(filePath: string, templatingContext: {}): IBuildTaskConfiguration[] {
+        const buildFile = this.loadBuildFile(filePath, templatingContext);
         if (buildFile.AWSTemplateFormatVersion !== undefined) {
             throw new OrgFormationError(`Error loading tasks file ${filePath}, seems like you are loading a template where a tasks file was expected...`);
         }
         return this.enumBuildConfigurationFromBuildFile(filePath, buildFile);
     }
 
-    public loadBuildFile(filePath: string): IBuildFile {
-
-        const buildFile = yamlParseWithIncludes(filePath) as IBuildFile;
-        if (buildFile === undefined) {
-            return {};
+    public loadBuildFile(filePath: string, templatingContext: {}): IBuildFile {
+        if (templatingContext) {
+            const templatedBuildFile = nunjucksParseWithIncludes(filePath, templatingContext) as IBuildFile;
+            return templatedBuildFile ?? {};
         }
-        return buildFile;
+        const buildFile = yamlParseWithIncludes(filePath) as IBuildFile;
+        return buildFile ?? {};
     }
     public enumBuildConfigurationFromBuildFile(filePath: string, buildFile: IBuildFile): IBuildTaskConfiguration[] {
         this.parameters = buildFile.Parameters;
         this.mappings = buildFile.Mappings;
+        this.organizationBindings = buildFile.OrganizationBindings ?? {};
+
         delete buildFile.Parameters;
         delete buildFile.Mappings;
+        delete buildFile.OrganizationBindings;
+
+        if (buildFile.Definitions && (buildFile.Definitions as any).Type) {
+            throw new OrgFormationError('Tasks file should not have a task called `Definitions`. This Definitions attribute is reserved for yaml anchors. Did Definitions somehow declare a Type attribute? use an array within your Definitions to declare yaml anchors.');
+        }
+
+        delete buildFile.Definitions;
 
         if (buildFile.Definitions && (buildFile.Definitions as any).Type) {
             throw new OrgFormationError('Tasks file should not have a task called `Definitions`. This Definitions attribute is reserved for yaml anchors. Did Definitions somehow declare a Type attribute? use an array within your Definitions to declare yaml anchors.');
@@ -193,6 +214,12 @@ export class BuildConfiguration {
             }
 
             this.resolver.addParameter(paramName, value);
+        }
+        for (const [key, binding] of Object.entries(this.organizationBindings)) {
+            if (this.parameters[key]) {
+                throw new OrgFormationError(`Cannot declare a parameter and organization binding with the same name ${key}.`);
+            }
+            this.resolver.addBinding(key, binding);
         }
         this.resolver.addMappings(this.mappings);
         this.resolver.setFilePath(filePath);
@@ -267,9 +294,10 @@ export interface IBuildTask {
 export interface IBuildFile extends Record<string, IBuildTaskConfiguration | {}> {
     Parameters?: Record<string, IBuildFileParameter>;
     Mappings?: CfnMappingsSection;
+    OrganizationBindings?: Record<string, IOrganizationBinding>;
 }
 
 export interface IBuildFileParameter {
     Type: string;
-    Default: string;
+    Default: string | IOrganizationBinding;
 }

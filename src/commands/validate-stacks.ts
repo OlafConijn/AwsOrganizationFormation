@@ -48,9 +48,10 @@ export class ValidateStacksCommand extends BaseCliCommand<IUpdateStacksCommandAr
         ConsoleUtil.state = state;
         const parameters = this.parseCfnParameters(command.parameters);
         const stackPolicy = command.stackPolicy;
+        const tags = command.tags;
         const cloudFormationRoleName = command.cloudFormationRoleName;
         const taskViaRoleArn = command.taskViaRoleArn;
-        const cfnBinder = new CloudFormationBinder(command.stackName, template, state, parameters, false, command.verbose === true, command.taskRoleName, false, stackPolicy, cloudFormationRoleName, command.resolver, undefined, taskViaRoleArn);
+        const cfnBinder = new CloudFormationBinder(command.stackName, template, state, parameters, false, command.verbose === true, command.taskRoleName, false, stackPolicy, tags, cloudFormationRoleName, command.resolver, undefined, taskViaRoleArn);
 
         const bindings = await cfnBinder.enumBindings();
 

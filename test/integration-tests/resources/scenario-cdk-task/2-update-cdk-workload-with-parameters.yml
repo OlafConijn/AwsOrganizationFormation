@@ -15,5 +15,6 @@ CdkWorkload:
   Parameters:
     param1: !Sub 'sub expression ${AWS::AccountId}'
     param2: !GetAtt AccountA.AccountName
+    param3: !GetAtt CurrentAccount.Tags.Tag
   MaxConcurrentTasks: 1
   FailedTaskTolerance: 0

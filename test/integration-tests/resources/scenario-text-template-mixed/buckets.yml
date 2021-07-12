@@ -1,0 +1,11 @@
+Parameters:
+  Switch:
+    Type: String
+  Partition:
+    Type: String
+  Substitute:
+    Type: String
+
+Resources:
+  Bucket:
+    Type: AWS::S3::Bucket

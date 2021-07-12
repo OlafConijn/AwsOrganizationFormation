@@ -7,7 +7,7 @@ export const nunjucksParseContentWithIncludes = (contents: string, directory: st
     const replacedContents = contents.replace(include, (_, __, includedRelativeFilePath) => {
 
         const resolvedFilePath = path.resolve(directory, includedRelativeFilePath);
-        const included = nunjucksParseWithIncludes(resolvedFilePath);
+        const included = nunjucksParseWithIncludes(resolvedFilePath, templatingContext);
         return JSON.stringify(included);
     });
 
@@ -15,11 +15,10 @@ export const nunjucksParseContentWithIncludes = (contents: string, directory: st
     return parsed;
 };
 
-export const nunjucksParseWithIncludes = (filePath: string): any => {
+export const nunjucksParseWithIncludes = (filePath: string, templatingContext: any): any => {
     const buffer = readFileSync(filePath);
     const contents = buffer.toString('utf-8');
     const dir = path.dirname(filePath);
     const filename = path.basename(filePath);
-    const templatingContext = buffer.toString('utf-8');
     return nunjucksParseContentWithIncludes(contents, dir, filename, templatingContext);
 };

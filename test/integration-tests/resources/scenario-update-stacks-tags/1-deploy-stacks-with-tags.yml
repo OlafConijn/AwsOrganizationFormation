@@ -1,0 +1,16 @@
+
+OrganizationUpdate:
+  Type: update-organization
+  Skip: true
+  Template: ./organization.yml
+
+TestUpdateTags:
+  Type: update-stacks
+  StackName: test-with-stack-tags
+  Template: ./buckets.yml
+  Tags:
+    Tag: tag-val1
+    AnotherTag: tag-val2
+  DefaultOrganizationBindingRegion: eu-west-1
+  DefaultOrganizationBinding:
+      IncludeMasterAccount: true

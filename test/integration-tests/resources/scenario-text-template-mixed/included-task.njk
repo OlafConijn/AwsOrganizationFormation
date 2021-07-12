@@ -1,0 +1,21 @@
+
+{% for team in Teams %}
+buckets{{ team.name | capitalize  }}:
+  Type: update-stacks
+  StackName: mixed-buckets-{{ team.name }}
+  Template: ./buckets.yml
+  MaxConcurrentStacks: 10
+  Parameters:
+    Switch: {{ Parameters.Switch }}
+    Partition: {{ Parameters.Partition | object }}
+    Substitute: {{ Parameters.Substitute | object }}
+  OrganizationBinding:
+    Region:
+{% for region in Regions %}
+      - {{region}}
+{% endfor %}
+    Account:
+{% for acc in Accounts %}
+      - !Ref {{acc.LogicalId}}
+{% endfor %}
+{% endfor %}

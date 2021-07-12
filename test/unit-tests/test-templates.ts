@@ -73,6 +73,7 @@ export class TestTemplates {
                         AccountId: '1232342341235',
                         Tags: {
                             key: 'Value 234',
+                            'key.other': 'val',
                         },
                     } as IAccountProperties,
                 },

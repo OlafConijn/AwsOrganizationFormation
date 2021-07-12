@@ -8,6 +8,7 @@ import { PersistedState } from '~state/persisted-state';
 import { AwsUtil } from '~util/aws-util';
 import { Validator } from '~parser/validator';
 import { BaseCliCommand } from '~commands/base-command';
+import { IOrganizationBinding, TemplateRoot } from '~parser/parser';
 
 
 interface IResolver {
@@ -21,20 +22,24 @@ interface ITreeResolver<T> {
 
 export class CfnExpressionResolver {
     readonly parameters: Record<string, string> = {};
+    readonly bindings: Record<string, IOrganizationBinding> = {};
     readonly resolvers: Record<string, IResolver> = {};
     readonly globalResolvers: IResolver[] = [];
     readonly treeResolvers: ITreeResolver<any>[] = [];
     mapping: CfnMappingsSection;
     filePath: string;
+    templateRoot: TemplateRoot;
 
     addResourceWithAttributes(resource: string, attributes: Record<string, string>): void {
-        this.resolvers[resource] = { resolve: (resolver: CfnExpressionResolver, resourceName: string, path?: string): string => {
-            const val = attributes[path];
-            if (val === undefined) {
-                throw new OrgFormationError(`unable to resolve expression, resource ${resourceName} does not have attribute ${path}`);
-            }
-            return val;
-        } };
+        this.resolvers[resource] = {
+            resolve: (resolver: CfnExpressionResolver, resourceName: string, path?: string): string => {
+                const val = attributes[path];
+                if (val === undefined) {
+                    throw new OrgFormationError(`unable to resolve expression, resource ${resourceName} does not have attribute ${path}`);
+                }
+                return val;
+            },
+        };
     }
 
     addMappings(mapping: CfnMappingsSection): void {
@@ -49,16 +54,24 @@ export class CfnExpressionResolver {
         this.parameters[key] = value;
     }
 
+    addBinding(key: string, value: IOrganizationBinding): void {
+        this.bindings[key] = value;
+    }
+
     addResolver(resolve: (resolver: CfnExpressionResolver, resource: string, path?: string) => string): void {
-        this.globalResolvers.push( { resolve } );
+        this.globalResolvers.push({ resolve });
     }
 
     addTreeResolver<T>(resolve: (resolver: CfnExpressionResolver, obj: T) => Promise<T>): void {
-        this.treeResolvers.push( { resolve });
+        this.treeResolvers.push({ resolve });
     }
 
     addResourceWithResolverFn(resource: string, resolve: (resolver: CfnExpressionResolver, resource: string, path?: string) => string | Promise<string>): void {
         this.resolvers[resource] = { resolve };
+    }
+
+    setTemplateRoot(templateRoot: TemplateRoot): void {
+        this.templateRoot = templateRoot;
     }
 
     public async resolveSingleExpression(expression: ICfnExpression, attributeName: string): Promise<string> {
@@ -66,19 +79,19 @@ export class CfnExpressionResolver {
             return expression;
         }
 
-        if (expression === null || typeof expression === 'undefined' ) {
+        if (expression === null || typeof expression === 'undefined') {
             return undefined;
         }
 
-        const container = {val: expression};
+        const container = { val: expression };
 
         const resolved = await this.resolve(container);
         const collapsed = await this.collapse(resolved);
 
-        if (typeof collapsed.val === 'string'|| typeof collapsed.val === 'number' || typeof collapsed.val === 'boolean' || typeof collapsed.val === 'bigint') {
+        if (typeof collapsed.val === 'string' || typeof collapsed.val === 'number' || typeof collapsed.val === 'boolean' || typeof collapsed.val === 'bigint') {
             return collapsed.val;
         }
-        if (collapsed.val === null || typeof collapsed.val === 'undefined' ) {
+        if (collapsed.val === null || typeof collapsed.val === 'undefined') {
             return undefined;
         }
 
@@ -86,13 +99,12 @@ export class CfnExpressionResolver {
     }
 
     public resolveFirstPass<T>(obj: T): T {
-        if (obj === undefined) {return undefined;}
+        if (obj === undefined) { return undefined; }
         const clone = JSON.parse(JSON.stringify(obj)) as T;
 
-        const container = {val: clone};
+        const container = { val: clone };
         const expressions = ResourceUtil.EnumExpressionsForResource(container, 'any');
-        for(const expression of expressions) {
-
+        for (const expression of expressions) {
             const paramVal = this.parameters[expression.resource];
             if (!expression.path && paramVal !== undefined) {
                 if (typeof paramVal !== 'object' || Array.isArray(paramVal)) {
@@ -107,6 +119,10 @@ export class CfnExpressionResolver {
                 }
                 continue;
             }
+            const bindingVal = this.bindings[expression.resource];
+            if (!expression.path && bindingVal !== undefined) {
+                expression.resolveToValue(bindingVal as string);
+            }
         }
         const context: ICfnFunctionContext = { filePath: this.filePath, mappings: this.mapping, finalPass: false };
         const resolved = CfnFunctions.resolveTreeStructural(context, true, container);
@@ -114,12 +130,12 @@ export class CfnExpressionResolver {
     }
 
     public async resolve<T>(obj: T): Promise<T> {
-        if (obj === undefined) {return undefined;}
+        if (obj === undefined) { return undefined; }
 
         const resolved = this.resolveFirstPass(obj);
-        const container = {val: resolved};
+        const container = { val: resolved };
         const expressions = ResourceUtil.EnumExpressionsForResource(container, 'any');
-        for(const expression of expressions) {
+        for (const expression of expressions) {
             const resource = this.resolvers[expression.resource];
             if (resource) {
                 const resourceVal = await resource.resolve(this, expression.resource, expression.path);
@@ -127,7 +143,7 @@ export class CfnExpressionResolver {
                 continue;
             }
 
-            for(const resolver of this.globalResolvers) {
+            for (const resolver of this.globalResolvers) {
                 const resolverVal = await resolver.resolve(this, expression.resource, expression.path);
                 if (resolverVal) {
                     expression.resolveToValue(resolverVal);
@@ -135,7 +151,7 @@ export class CfnExpressionResolver {
                 }
             }
         }
-        for(const treeResolver of this.treeResolvers) {
+        for (const treeResolver of this.treeResolvers) {
             await treeResolver.resolve(this, container);
         }
 
@@ -143,12 +159,12 @@ export class CfnExpressionResolver {
     }
 
     public async collapse<T>(obj: T): Promise<T> {
-        if (obj === undefined) {return undefined;}
+        if (obj === undefined) { return undefined; }
 
         const clone = JSON.parse(JSON.stringify(obj)) as T;
-        const container = {val: clone};
+        const container = { val: clone };
         const expressions = ResourceUtil.EnumCfnFunctionsForResource(container);
-        for(const expression of expressions.reverse()) {
+        for (const expression of expressions.reverse()) {
             if (expression.type === 'Sub') {
                 const subExpression = expression.target as ICfnSubExpression;
                 if (Array.isArray(subExpression['Fn::Sub'])) {
@@ -158,11 +174,11 @@ export class CfnExpressionResolver {
                     }
                     const resolver = new CfnExpressionResolver();
                     const parameters = Object.entries(arr[1]);
-                    for(const param of parameters) {
+                    for (const param of parameters) {
                         resolver.addParameter(param[0], param[1] as string);
                     }
 
-                    const value = await resolver.resolveSingleExpression({'Fn::Sub': arr[0]} as ICfnSubExpression, 'Sub');
+                    const value = await resolver.resolveSingleExpression({ 'Fn::Sub': arr[0] } as ICfnSubExpression, 'Sub');
                     expression.resolveToValue(value);
                 }
             }
@@ -174,13 +190,60 @@ export class CfnExpressionResolver {
         return container.val;
     }
 
+    public resolveTemplatingContext<T>(obj: T): T {
+        if (obj === undefined) { return undefined; }
+        const getBinding = (expression: string): IOrganizationBinding => {
+            const expressionParts = expression.split(' ');
+            if (expressionParts.length !== 2) {
+                throw new OrgFormationError(`Invalid ${expressionParts[0]} expression in TemplatingContext. Expression must have 2 parts: ${expression} has ${expressionParts.length} parts`);
+            }
+
+            const bindingName = expressionParts[1];
+            const binding = this.bindings[bindingName];
+            if (!binding) {
+                throw new OrgFormationError(`Invalid ${expressionParts[0]} expression in TemplatingContext. Binding with name ${bindingName} was not found. Bindings that are found: ${Object.keys(this.bindings)}`);
+            }
+
+            return binding;
+        };
+        const container = { val: obj };
+        const list = [container];
+        while (list.length > 0) {
+            const current: Record<string, any> = list.pop();
+            for (const [key, val] of Object.entries(current)) {
+                if (typeof val === 'string') {
+                    if (val.startsWith('Fn::EnumTargetAccounts')) {
+                        const binding = getBinding(val);
+                        const accounts = this.templateRoot.resolveNormalizedAccounts(binding);
+                        current[key] = accounts.map(acc => ({
+                            AccountId: acc.accountId,
+                            LogicalId: acc.logicalId,
+                            AccountName: acc.accountName,
+                            Alias: acc.alias,
+                            RootEmail: acc.rootEmail,
+                            Tags: acc.tags,
+                        }));
+                    } else if (val.startsWith('Fn::EnumTargetRegions')) {
+                        const binding = getBinding(val);
+                        current[key] = this.templateRoot.resolveNormalizedRegions(binding);
+                    }
+                }
+                if (typeof val === 'object') {
+                    list.push(val);
+                }
+            }
+        }
+
+        return container.val;
+    }
+
     static ResolveOrganizationExpressionByLogicalName(logicalName: string, path: string | undefined, organization: OrganizationSection, state: PersistedState): string | undefined {
-        const account = organization.findAccount(x=>x.logicalId === logicalName);
+        const account = organization.findAccount(x => x.logicalId === logicalName);
         if (account !== undefined) {
             return CfnExpressionResolver.ResolveAccountExpression(account, path, state);
         }
 
-        const resource = organization.findResource(x=>x.logicalId === logicalName);
+        const resource = organization.findResource(x => x.logicalId === logicalName);
         if (resource !== undefined) {
             return CfnExpressionResolver.ResolveResourceRef(resource, state);
         }
@@ -232,10 +295,10 @@ export class CfnExpressionResolver {
 
     public static ValueUsedForUnresolvedCopyValueExpression = 'value-used-for-unresolved-copy-value-on-validation';
 
-    private static async ResolveCopyValueFunctions<T>(resolver: CfnExpressionResolver, targetAccount: string, targetRegion: string, taskRoleName: string, viaRoleArn: string,  obj: T, finalPerform: boolean): Promise<T> {
+    private static async ResolveCopyValueFunctions<T>(resolver: CfnExpressionResolver, targetAccount: string, targetRegion: string, taskRoleName: string, viaRoleArn: string, obj: T, finalPerform: boolean): Promise<T> {
         const functions = ResourceUtil.EnumFunctionsForResource(obj);
 
-        for(const fn of functions) {
+        for (const fn of functions) {
             const processed = await resolver.resolve(fn);
             const exportName = processed.exportName;
             const accountId = processed.accountId ?? targetAccount;

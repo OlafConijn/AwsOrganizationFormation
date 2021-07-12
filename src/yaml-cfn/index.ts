@@ -12,23 +12,28 @@
  * Modified by OC to support other custom tags needed by org-formation.
  */
 'use strict';
-
-import yaml  from 'js-yaml';
+import path from 'path';
+import { mkdirSync, writeFileSync } from 'fs';
+import yaml from 'js-yaml';
 import nunjucks from 'nunjucks';
+import { ConsoleUtil } from '~util/console-util';
 
-nunjucks.configure(
-    '.',
-    {
-        autoescape: true,
-        trimBlocks: true,
-        lstripBlocks: true,
-        throwOnUndefined: true,
-    });
+const env = nunjucks.configure(
+  '.',
+  {
+    autoescape: false,
+    trimBlocks: true,
+    lstripBlocks: true,
+    throwOnUndefined: false,
+  });
+env.addFilter('object', x => {
+  return JSON.stringify(x);
+});
 
 /**
  * Split a string on the given separator just once, returning an array of two parts, or null.
  */
-const splitOne =(str: string, sep: string): string[] | null => {
+const splitOne = (str: string, sep: string): string[] | null => {
   const index = str.indexOf(sep);
   return index < 0 ? null : [str.slice(0, index), str.slice(index + sep.length)];
 };
@@ -37,7 +42,7 @@ const splitOne =(str: string, sep: string): string[] | null => {
  * Returns true if obj is a representation of a CloudFormation intrinsic, i.e. an object with a
  * single property at key keyName.
  */
-const checkType =(obj: {}, keyName: string): boolean => {
+const checkType = (obj: {}, keyName: string): boolean => {
   return obj && typeof obj === 'object' && Object.keys(obj).length === 1 &&
     obj.hasOwnProperty(keyName);
 };
@@ -48,7 +53,7 @@ const overrides: any = {
   // is to use an array [Resource, Attribute]. Convert shorthand to standard format.
   GetAtt: {
     parse: (data: any): any => typeof data === 'string' ? splitOne(data, '.') : data,
-    dump: (data: []): string  => data.join('.'),
+    dump: (data: []): string => data.join('.'),
   },
 };
 
@@ -68,7 +73,7 @@ const makeTagTypes = (name: string): yaml.Type[] => {
   // Translate in the same way for all types, to match Python's generic translation.
   return ['scalar', 'sequence', 'mapping'].map(kind => new yaml.Type('!' + tag, {
     kind: kind as any,
-    construct: (data: any): any => ({[name]: applyOverrides(data, tag, 'parse')}),
+    construct: (data: any): any => ({ [name]: applyOverrides(data, tag, 'parse') }),
     predicate: (obj: any): boolean => checkType(obj, name),
     represent: (obj: any): any => applyOverrides(obj[name], tag, 'dump'),
   }));
@@ -124,10 +129,41 @@ export const yamlParse = (input: string): any => {
 };
 
 export const nunjucksParse = (input: string, filename: string, templatingContext: any): any => {
-  const rendered = nunjucks.renderString(input, templatingContext);
+  const rendered = env.renderString(input, templatingContext);
+  if (NunjucksDebugSettings.debug) {
+    debugWriteNunjucksTemplate(filename, input, templatingContext, rendered);
+  }
   return yaml.load(rendered, { schema: cfnSchema });
 };
 
 export const yamlDump = (input: any): string => {
   return yaml.dump(input, { schema: cfnSchema });
 };
+
+export const nunjucksRender = (input: string, filename: string, templatingContext: any): string => {
+  const rendered = env.renderString(input, templatingContext);
+  if (NunjucksDebugSettings.debug) {
+    debugWriteNunjucksTemplate(filename, input, templatingContext, rendered);
+  }
+  return rendered;
+};
+
+
+export const debugWriteNunjucksTemplate = (filename: string, input: string, templatingContext: any, output: string): void => {
+  try {
+    const outputPath = path.resolve(NunjucksDebugSettings.path, path.basename(filename));
+    mkdirSync(outputPath, { recursive: true });
+    writeFileSync(path.join(outputPath, 'input.txt'), input);
+    writeFileSync(path.join(outputPath, 'output.txt'), output);
+    writeFileSync(path.join(outputPath, 'templating-context.json'), JSON.stringify(templatingContext, undefined, 2));
+
+  } catch (err) {
+    ConsoleUtil.LogError('error writing text templating debug info to disk: ' + filename, err);
+  }
+};
+
+export const NunjucksDebugSettings = {
+  debug: false,
+  path: './.nunjucks-debug/',
+};
+

@@ -1,0 +1,27 @@
+Parameters:
+  switch:
+    Type: Boolean
+    Default: false
+
+OrganizationBindings:
+  MasterAccount:
+    IncludeMasterAccount: true
+    Region: eu-west-1
+
+OrganizationUpdate:
+  Type: update-organization
+  Template: ./organization.yml
+  Skip: true
+
+Include:
+  Type: include
+  Path: ./included-task.njk
+  TemplatingContext:
+    Teams: !Include ./teams.json
+    Parameters:
+      Switch: !Ref switch
+      Partition: !Ref AWS::Partition
+      Substitute: !Sub 'Current Account: ${CurrentAccount}'
+    Accounts: Fn::EnumTargetAccounts MasterAccount
+    Regions: Fn::EnumTargetRegions MasterAccount
+
